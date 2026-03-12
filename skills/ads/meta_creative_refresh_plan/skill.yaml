@@ -1,0 +1,34 @@
+apiVersion: mar21/skill-v1
+id: ads.meta_creative_refresh_plan
+domain: ads
+description: "Produce a creative refresh plan for Meta Ads (template-first in v0.1)."
+
+inputs:
+  schema:
+    type: object
+    additionalProperties: true
+    properties:
+      focus: { type: string }
+
+outputs:
+  schema:
+    type: object
+    required: [planRef]
+    additionalProperties: true
+    properties:
+      planRef: { type: string }
+
+usesConnectors:
+  - meta_ads.read.insights.by_ad
+
+risk:
+  level: none
+  writes: false
+
+artifacts:
+  produces:
+    - outputs/creative_refresh_plan.md
+
+idempotency:
+  strategy: snapshot_based
+

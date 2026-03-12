@@ -12,6 +12,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@mar21/core": "workspace:*",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "commander": "^13.1.0",

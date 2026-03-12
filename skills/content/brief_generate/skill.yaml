@@ -1,0 +1,37 @@
+apiVersion: mar21/skill-v1
+id: content.brief_generate
+domain: content
+description: "Generate an execution-ready creative brief (template-first in v0.1)."
+
+inputs:
+  schema:
+    type: object
+    additionalProperties: true
+    properties:
+      assetType:
+        type: string
+        description: "Asset type hint (e.g. landing_page, ad, email, blog)."
+
+outputs:
+  schema:
+    type: object
+    required: [briefRef]
+    additionalProperties: true
+    properties:
+      briefRef: { type: string }
+      assetType: { type: string }
+      primaryKpi: { type: string }
+
+usesConnectors: []
+
+risk:
+  level: none
+  writes: false
+
+artifacts:
+  produces:
+    - outputs/creative_brief.yaml
+
+idempotency:
+  strategy: snapshot_based
+
