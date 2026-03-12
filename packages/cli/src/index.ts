@@ -30,7 +30,7 @@ async function writeStdoutLine(line: string): Promise<void> {
 
 program
   .name("mar21")
-  .description("AI-native Marketing Operating System (boilerplate)")
+  .description("Marketing boilerplate for the 21st century (agentic, you in control)")
   .version("0.1.0");
 
 program
@@ -45,7 +45,7 @@ program
 
 program
   .command("validate")
-  .description("Validate artifacts against schemas (v0.1: stub)")
+  .description("Validate artifacts against schemas (v0.1)")
   .option("--examples", "Validate examples/", false)
   .action((opts: { examples?: boolean }) => {
     if (opts.examples) process.exit(validateExamples());

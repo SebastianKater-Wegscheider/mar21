@@ -1,6 +1,6 @@
 # mar21 Manifesto
 
-`mar21` is an **AI-native Marketing Operating System**: a repo-first, skill-driven way to run marketing as a **repeatable, inspectable engine**.
+`mar21` is **marketing boilerplate for the 21st century**: a repo-first, skill-driven way to run **agentic marketing** as a **repeatable, inspectable engine** — with **you in control**.
 
 This is a manifesto *and* an implementation stance. The “operating system” is not a metaphor—it's a set of conventions, contracts, and run artifacts that make marketing work **programmable** without making it **opaque**.
 

@@ -1,11 +1,11 @@
 # mar21
-**AI-native Marketing Operating System** — an open-source boilerplate for *one-person marketing* from GTM strategy to operational execution and reporting.
+**Marketing boilerplate for the 21st century** — an open-source foundation for **agentic marketing**, where **you stay in control**.
 
-`mar21` is not “a few automations”. It is a **repository convention + skill system + connector interfaces + CLI agent surface** that lets an operator run marketing as an **auditable engine**:
+`mar21` is not “a few automations”. It is a **repository convention + skill system + connector interfaces + CLI** that lets a growth operator/CMO run marketing as an **auditable execution engine**:
 
 - **Context-first**: persistent marketing context lives in versioned YAML (company, model, KPIs, constraints, risk).
 - **Run-based**: work happens in runs that always emit **Plan + Report + ChangeSet**.
-- **Supervised-by-default**: the agent proposes changes; you approve (or opt-in to safe autopilot).
+- **You in control**: supervised-by-default — the agent proposes changes; you approve (or opt in to safe autopilot).
 - **Connector-driven**: first-class interfaces to typical marketing tools (v1: GSC, GA4, Meta Ads, HubSpot, Shopify, WordPress, Slack, Klaviyo).
 - **Own your AI**: keep competence, memory, and decision logic in *your* repo; still leverage platform-native AI where helpful.
 - **Moving target**: this repo is designed to evolve with the space—one step at a time, with stable interfaces.
