@@ -1,7 +1,18 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import process from "node:process";
+import { initWorkspace } from "./init.js";
+import { runPlan } from "./run-engine.js";
 import { validateExamples } from "./validate.js";
+
+process.on("uncaughtException", (err) => {
+  const exitCode = (err as Error & { exitCode?: number }).exitCode;
+  if (exitCode) {
+    console.error((err as Error).message);
+    process.exit(exitCode);
+  }
+  throw err;
+});
 
 const program = new Command();
 
@@ -12,11 +23,12 @@ program
 
 program
   .command("init")
-  .description("Initialize a workspace skeleton (v0.1: stub)")
+  .description("Initialize a workspace skeleton (v0.1)")
   .option("--workspace <id>", "Workspace id")
   .option("--force", "Overwrite if exists", false)
-  .action(() => {
-    console.log("mar21 init: not implemented yet (see docs/SPECS.md).");
+  .action((opts: { workspace?: string; force?: boolean }) => {
+    const res = initWorkspace({ workspace: opts.workspace, force: opts.force });
+    console.log(`✓ workspace initialized: ${res.workspace} (${res.root})`);
   });
 
 program
@@ -30,11 +42,44 @@ program
 
 program
   .command("plan")
-  .description("Run a workflow in planning mode (v0.1: stub)")
+  .description("Run a workflow in planning mode (v0.1: artifacts-only)")
   .argument("<workflowId>", "Workflow id")
-  .action((workflowId: string) => {
-    console.log(`mar21 plan ${workflowId}: not implemented yet (see docs/WORKFLOWS.md).`);
-  });
+  .requiredOption("--workspace <id>", "Workspace id")
+  .option("--mode <mode>", "advisory|supervised|autonomous")
+  .option("--since <duration>", "ISO 8601 duration, e.g. P7D or P28D")
+  .option("--dry-run", "Never apply writes (still produces ChangeSet)", false)
+  .option("--json", "Print machine-readable run summary", false)
+  .action(
+    (
+      workflowId: string,
+      opts: {
+        workspace: string;
+        mode?: string;
+        since?: string;
+        dryRun?: boolean;
+        json?: boolean;
+      }
+    ) => {
+    const mode =
+      opts.mode === "advisory" || opts.mode === "supervised" || opts.mode === "autonomous"
+        ? opts.mode
+        : undefined;
+    const summary = runPlan(workflowId, {
+      workspace: opts.workspace,
+      mode,
+      since: opts.since,
+      dryRun: Boolean(opts.dryRun),
+      json: Boolean(opts.json)
+    });
+
+    if (opts.json) {
+      process.stdout.write(`${JSON.stringify(summary)}\n`);
+      return;
+    }
+    console.log(`✓ run created: ${summary.runId}`);
+    console.log(`  - ${summary.paths.runDir}`);
+    }
+  );
 
 program
   .command("apply")

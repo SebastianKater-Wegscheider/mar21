@@ -13,6 +13,10 @@ dist/
 **/runs/
 **/cache/
 
+# Local workspaces (user data)
+workspaces/*
+!workspaces/README.md
+
 # OS / editor
 .DS_Store
 .idea/
