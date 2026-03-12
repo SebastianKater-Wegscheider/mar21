@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import process from "node:process";
+import { applyRunChangeset } from "./apply-engine.js";
 import { initWorkspace } from "./init.js";
 import { runPlan } from "./run-engine.js";
 import { validateExamples } from "./validate.js";
@@ -83,10 +84,39 @@ program
 
 program
   .command("apply")
-  .description("Apply a run changeset (v0.1: stub)")
+  .description("Apply a run changeset (v0.1: internal ops only)")
   .argument("<runId>", "Run id")
-  .action((runId: string) => {
-    console.log(`mar21 apply ${runId}: not implemented yet (see docs/SPECS.md).`);
-  });
+  .requiredOption("--workspace <id>", "Workspace id")
+  .option("--yes", "Auto-approve all required approvals", false)
+  .option("--json", "Print machine-readable apply summary", false)
+  .action(
+    async (
+      runId: string,
+      opts: {
+        workspace: string;
+        yes?: boolean;
+        json?: boolean;
+      }
+    ) => {
+      const { summary, exitCode } = await applyRunChangeset({
+        workspace: opts.workspace,
+        runId,
+        yes: Boolean(opts.yes),
+        json: Boolean(opts.json)
+      });
+
+      if (opts.json) {
+        process.stdout.write(`${JSON.stringify(summary)}\n`);
+        process.exit(exitCode);
+      }
+
+      const failed = summary.results.filter((r) => r.status === "failed");
+      const rejected = summary.results.filter((r) => r.status === "rejected");
+      console.log(`✓ apply finished: ${summary.runId}`);
+      if (failed.length) console.log(`  - failed ops: ${failed.length}`);
+      if (rejected.length) console.log(`  - rejected ops: ${rejected.length}`);
+      process.exit(exitCode);
+    }
+  );
 
 program.parse(process.argv);
