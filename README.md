@@ -50,7 +50,7 @@ Docs are the product for v0: the manifesto + the decision-complete interfaces yo
 This repo specifies an opinionated CLI, even before code exists:
 
 ```bash
-mar21 init --workspace acme
+mar21 init --workspace acme --stack default
 mar21 plan gtm --workspace acme
 
 mar21 analyze week --workspace acme

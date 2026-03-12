@@ -37,11 +37,26 @@ program
   .command("init")
   .description("Initialize a workspace skeleton (v0.1)")
   .option("--workspace <id>", "Workspace id")
+  .option(
+    "--stack <preset>",
+    "Stack preset (default: default). Examples: default, content_engine, paid_growth, lifecycle"
+  )
+  .option(
+    "--connectors <list>",
+    "Comma-separated connector ids (overrides --stack), e.g. gsc,ga4,wordpress,slack,gdrive,ahrefs"
+  )
   .option("--force", "Overwrite if exists", false)
-  .action((opts: { workspace?: string; force?: boolean }) => {
-    const res = initWorkspace({ workspace: opts.workspace, force: opts.force });
-    console.log(`✓ workspace initialized: ${res.workspace} (${res.root})`);
-  });
+  .action(
+    (opts: { workspace?: string; stack?: string; connectors?: string; force?: boolean }) => {
+      const res = initWorkspace({
+        workspace: opts.workspace,
+        stack: opts.stack,
+        connectors: opts.connectors,
+        force: opts.force
+      });
+      console.log(`✓ workspace initialized: ${res.workspace} (${res.root})`);
+    }
+  );
 
 program
   .command("validate")
