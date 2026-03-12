@@ -260,7 +260,8 @@ function writeRequestYaml(args: {
   writeText(path.join(args.inputsDir, "request.yaml"), YAML.stringify(req));
 }
 
-export function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): RunSummary {
+/*
+function runPlanSyncDeprecated(workflowIdRaw: string, opts: PlanCommandOptions): RunSummary {
   const repoRoot = repoRootFromCwd();
   const workspaceId = resolveWorkspaceId(opts.workspace);
   if (!workspaceId) {
@@ -356,6 +357,9 @@ export function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): RunSum
   const skillsExecuted: SkillExecutionResult[] = [];
 
   const pipelineForWorkflow = (slugId: string): SkillStep[] => {
+    if (slugId === "weekly_review" || slugId === "report_weekly" || slugId === "report_weekly_review") {
+      return [{ skillId: "analytics.weekly_review_evidence", inputs: {} }];
+    }
     if (slugId === "content_brief") {
       return [{ skillId: "content.brief_generate", inputs: { assetType: "landing_page" } }];
     }
@@ -450,8 +454,201 @@ export function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): RunSum
     }
   };
 }
+*/
+export async function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): Promise<RunSummary> {
+  const repoRoot = repoRootFromCwd();
+  const workspaceId = resolveWorkspaceId(opts.workspace);
+  if (!workspaceId) {
+    const err = new Error("missing --workspace (or MAR21_WORKSPACE)");
+    (err as Error & { exitCode?: number }).exitCode = 2;
+    throw err;
+  }
 
-export function runAnalyze(scopeRaw: string, opts: PlanCommandOptions): RunSummary {
+  const wsRoot = workspaceRoot(repoRoot, workspaceId);
+  if (!fs.existsSync(wsRoot) || !fs.statSync(wsRoot).isDirectory()) {
+    const err = new Error(`workspace not found: ${workspaceId} (${wsRoot})`);
+    (err as Error & { exitCode?: number }).exitCode = 10;
+    throw err;
+  }
+
+  const contextPath = path.join(wsRoot, "marketing-context.yaml");
+  if (!fs.existsSync(contextPath)) {
+    const err = new Error(`missing marketing context: ${contextPath}`);
+    (err as Error & { exitCode?: number }).exitCode = 10;
+    throw err;
+  }
+
+  const workflowId = workflowIdRaw.trim();
+  const slug = slugifyWorkflowId(workflowId);
+  const startedAt = nowIso();
+
+  const runsDir = path.join(wsRoot, "runs");
+  ensureDir(runsDir);
+  const baseRunId = `${utcTimestampForRunId(new Date())}_${slug}`;
+  const runId = pickRunId(runsDir, baseRunId);
+  const runDir = path.join(runsDir, runId);
+
+  const inputsDir = path.join(runDir, "inputs");
+  const outputsDir = path.join(runDir, "outputs");
+  const evidenceDir = path.join(outputsDir, "evidence");
+  ensureDir(inputsDir);
+  ensureDir(evidenceDir);
+
+  const context = readYamlFile(contextPath);
+  const mode: Mode = opts.mode ?? defaultModeFromContext(context);
+  const since = opts.since ?? "P28D";
+
+  fs.copyFileSync(contextPath, path.join(inputsDir, "context.snapshot.yaml"));
+  writeRequestYaml({ inputsDir, workflowId, workspaceId, mode, since, params: opts.params });
+
+  writeText(path.join(outputsDir, "plan.md"), planTemplate(workflowId));
+  writeText(path.join(outputsDir, "report.md"), reportTemplate(workflowId));
+
+  const logsPath = path.join(runDir, "logs.jsonl");
+  writeText(logsPath, logsLine({ event: "run.started", runId, workflowId, workspace: workspaceId }));
+
+  const request = {
+    apiVersion: "mar21/request-v1",
+    workflowId,
+    workspace: workspaceId,
+    mode,
+    since,
+    params: opts.params ?? {}
+  };
+
+  const ctx = {
+    repoRoot,
+    workspaceId,
+    workspaceRoot: wsRoot,
+    runId,
+    runDir,
+    inputsDir,
+    outputsDir,
+    evidenceDir,
+    mode,
+    since,
+    dryRun: Boolean(opts.dryRun),
+    context,
+    request,
+    writeText: (relativePath: string, content: string) => writeText(safeJoin(runDir, relativePath), content),
+    writeJson: (relativePath: string, data: unknown) => writeJson(safeJoin(runDir, relativePath), data),
+    writeYaml: (relativePath: string, data: unknown) =>
+      writeText(safeJoin(runDir, relativePath), YAML.stringify(data)),
+    exists: (relativePath: string) => fs.existsSync(safeJoin(runDir, relativePath)),
+    log: (event: Record<string, unknown>) => fs.appendFileSync(logsPath, logsLine(event), "utf-8")
+  } as const;
+
+  const changeset: Record<string, unknown> = {
+    apiVersion: "mar21/changeset-v1",
+    runId,
+    workspace: workspaceId,
+    mode,
+    ops: []
+  };
+
+  const ops: Array<Record<string, unknown>> = [];
+  const skillsExecuted: SkillExecutionResult[] = [];
+
+  const pipelineForWorkflow = (slugId: string): SkillStep[] => {
+    if (slugId === "weekly_review" || slugId === "report_weekly" || slugId === "report_weekly_review") {
+      return [{ skillId: "analytics.weekly_review_evidence", inputs: {} }];
+    }
+    if (slugId === "content_brief") {
+      return [{ skillId: "content.brief_generate", inputs: { assetType: "landing_page" } }];
+    }
+    if (slugId === "landing_page_iteration") {
+      return [
+        { skillId: "content.brief_generate", inputs: { assetType: "landing_page" } },
+        { skillId: "content.wordpress_draft_create", inputs: {} },
+        { skillId: "ads.meta_creative_refresh_plan", inputs: {} }
+      ];
+    }
+    return [];
+  };
+
+  const pipeline = pipelineForWorkflow(slug);
+  if (pipeline.length > 0) {
+    try {
+      const res = await executeSkillPipeline({ ctx: ctx as any, steps: pipeline });
+      for (const r of res) {
+        skillsExecuted.push(r);
+        ctx.writeJson(skillOutputsPath(r.skillId), r.outputs);
+        for (const op of r.ops) ops.push(op);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      ctx.log({ event: "run.failed", runId, error: msg });
+      throw e;
+    }
+  }
+
+  if (slug === "deep_research_sparring") {
+    const accessedAt = nowIso();
+
+    writeText(
+      path.join(outputsDir, "research_pack.md"),
+      deepResearchPackTemplate({ workspaceId, runId, accessedDate: accessedAt })
+    );
+    writeText(path.join(outputsDir, "decision_log.md"), deepDecisionLogTemplate(accessedAt));
+
+    // Optional fixture evidence (no real APIs yet): emulate a redacted Drive extract.
+    writeText(
+      path.join(evidenceDir, "gdrive_pdf987.md"),
+      `# Redacted extract (fixture)\n\n- Objection: “We need control / audit trails.”\n- Implication: messaging + proof should address auditability.\n`
+    );
+    writeJson(path.join(evidenceDir, "evidence.json"), [
+      {
+        id: "E1",
+        sourceRef: "drive:fileId:pdf987",
+        derivedFrom: "private_doc",
+        path: "outputs/evidence/gdrive_pdf987.md",
+        contentType: "text/markdown",
+        redacted: true,
+        sha256: "00000000000000000000000000000000",
+        notes: "Fixture evidence for v0.1; redacted."
+      }
+    ]);
+
+    for (const op of deepResearchSparringOps()) ops.push(op);
+  }
+
+  (changeset as any).ops = ops;
+  writeText(path.join(runDir, "changeset.yaml"), YAML.stringify(changeset));
+
+  fs.appendFileSync(logsPath, logsLine({ event: "run.outputs", outputsDir: "outputs/" }), "utf-8");
+
+  writeJson(path.join(runDir, "approvals.json"), []);
+
+  const finishedAt = nowIso();
+  writeJson(path.join(runDir, "run.json"), {
+    apiVersion: "mar21/run-v1",
+    runId,
+    workspace: workspaceId,
+    workflowId,
+    mode,
+    since,
+    startedAt,
+    finishedAt,
+    skillsExecuted: skillsExecuted.map((s) => s.skillId),
+    connectorsUsed: [],
+    writesAttempted: false
+  });
+
+  fs.appendFileSync(logsPath, logsLine({ event: "run.finished", runId, finishedAt }), "utf-8");
+
+  return {
+    runId,
+    workspace: workspaceId,
+    workflowId,
+    mode,
+    paths: {
+      runDir: path.relative(repoRoot, runDir),
+      changeset: path.relative(repoRoot, path.join(runDir, "changeset.yaml"))
+    }
+  };
+}
+
+export async function runAnalyze(scopeRaw: string, opts: PlanCommandOptions): Promise<RunSummary> {
   const scope = scopeRaw.trim();
   const workflowId = `analyze_${slugifyWorkflowId(scope)}`;
   return runPlan(workflowId, {
@@ -460,7 +657,7 @@ export function runAnalyze(scopeRaw: string, opts: PlanCommandOptions): RunSumma
   });
 }
 
-export function runReport(argRaw: string, opts: PlanCommandOptions): RunSummary {
+export async function runReport(argRaw: string, opts: PlanCommandOptions): Promise<RunSummary> {
   const arg = argRaw.trim();
   const workflowId = `report_${slugifyWorkflowId(arg)}`;
   return runPlan(workflowId, {

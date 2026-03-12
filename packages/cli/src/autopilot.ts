@@ -87,7 +87,7 @@ export async function autopilotStart(opts: AutopilotOptions): Promise<void> {
     const runs: RunSummary[] = [];
     for (const step of profile.steps) {
       runs.push(
-        runPlan(step.workflowId, {
+        await runPlan(step.workflowId, {
           workspace: workspaceId,
           mode: opts.mode ?? step.mode,
           since: step.since,

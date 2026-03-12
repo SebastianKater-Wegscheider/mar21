@@ -1,5 +1,5 @@
 {
-  "name": "@mar21/core",
+  "name": "@mar21/connectors",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,14 +8,9 @@
   "scripts": {
     "build": "tsc -b tsconfig.json"
   },
-  "dependencies": {
-    "@mar21/connectors": "workspace:*",
-    "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1",
-    "yaml": "^2.7.0"
-  },
   "devDependencies": {
     "@types/node": "^22.13.10",
     "typescript": "^5.8.2"
   }
 }
+

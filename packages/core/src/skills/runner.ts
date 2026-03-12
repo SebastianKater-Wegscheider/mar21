@@ -2,7 +2,9 @@ import Ajv2020Import from "ajv/dist/2020.js";
 import addFormatsImport from "ajv-formats";
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import YAML from "yaml";
+import { ga4RunReport, getGoogleAccessToken, gscSearchAnalyticsQuery, requireEnv } from "@mar21/connectors";
 import type { SkillDefinition, SkillExecutionResult, SkillManifest, SkillStep, RunContext } from "./types.js";
 
 type Ajv2020Class = typeof import("ajv/dist/2020.js").default;
@@ -100,10 +102,10 @@ export function discoverSkills(repoRoot: string): SkillDefinition[] {
   return defs.sort((a, b) => a.manifest.id.localeCompare(b.manifest.id));
 }
 
-type SkillImpl = (args: { ctx: RunContext; inputs: Record<string, unknown> }) => {
-  outputs: unknown;
-  ops?: Array<Record<string, unknown>>;
-};
+type SkillImplResult = { outputs: unknown; ops?: Array<Record<string, unknown>> };
+type SkillImpl = (args: { ctx: RunContext; inputs: Record<string, unknown> }) =>
+  | SkillImplResult
+  | Promise<SkillImplResult>;
 
 function opId(skillId: string, suffix: string): string {
   const safeSkill = skillId.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toLowerCase();
@@ -237,6 +239,129 @@ const IMPLS: Record<string, SkillImpl> = {
       outputs: { planRef: "outputs/creative_refresh_plan.md" },
       ops
     };
+  },
+
+  "analytics.weekly_review_evidence": async ({ ctx, inputs }) => {
+    const ga4PropertyId =
+      String((inputs as any).ga4PropertyId ?? "").trim() || (process.env.MAR21_GA4_PROPERTY_ID ?? "").trim();
+    const gscSiteUrl =
+      String((inputs as any).gscSiteUrl ?? "").trim() || (process.env.MAR21_GSC_SITE_URL ?? "").trim();
+
+    const cacheRoot = path.join(ctx.workspaceRoot, "cache", "snapshots");
+    const ensureDir = (p: string) => fs.mkdirSync(p, { recursive: true });
+    ensureDir(cacheRoot);
+
+    const cacheKey = (obj: unknown) => createHash("sha256").update(JSON.stringify(obj)).digest("hex").slice(0, 16);
+    const readCache = (connectorId: string, key: string): unknown | null => {
+      const p = path.join(cacheRoot, connectorId, `${key}.json`);
+      if (!fs.existsSync(p)) return null;
+      try {
+        return JSON.parse(fs.readFileSync(p, "utf-8"));
+      } catch {
+        return null;
+      }
+    };
+    const writeCache = (connectorId: string, key: string, payload: unknown): void => {
+      const dir = path.join(cacheRoot, connectorId);
+      ensureDir(dir);
+      fs.writeFileSync(path.join(dir, `${key}.json`), `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
+    };
+
+    const hasGa4Signal =
+      Boolean(ga4PropertyId) ||
+      Boolean(process.env.MAR21_GA4_REFRESH_TOKEN || process.env.MAR21_GA4_CLIENT_ID || process.env.MAR21_GA4_CLIENT_SECRET);
+    const hasGscSignal =
+      Boolean(gscSiteUrl) ||
+      Boolean(process.env.MAR21_GSC_REFRESH_TOKEN || process.env.MAR21_GSC_CLIENT_ID || process.env.MAR21_GSC_CLIENT_SECRET);
+
+    if (!hasGa4Signal && !hasGscSignal) {
+      ctx.writeJson("outputs/evidence/ga4_report.json", { configured: false, reason: "ga4 not configured" });
+      ctx.writeJson("outputs/evidence/gsc_queries.json", { configured: false, reason: "gsc not configured" });
+      ctx.writeText(
+        "outputs/report.md",
+        `# Report — weekly_review\n\n## Evidence\n- GA4: not configured (set MAR21_GA4_* env vars)\n- GSC: not configured (set MAR21_GSC_* env vars)\n\n## Next\n- Run \`mar21 init --connectors ga4,gsc\` (or update secrets/.env) and re-run.\n`
+      );
+      return {
+        outputs: { ga4EvidenceRef: "outputs/evidence/ga4_report.json", gscEvidenceRef: "outputs/evidence/gsc_queries.json" }
+      };
+    }
+
+    const ga4Enabled = hasGa4Signal;
+    const gscEnabled = hasGscSignal;
+
+    const ga4Access = ga4Enabled
+      ? await getGoogleAccessToken({
+          clientId: requireEnv("MAR21_GA4_CLIENT_ID"),
+          clientSecret: requireEnv("MAR21_GA4_CLIENT_SECRET"),
+          refreshToken: requireEnv("MAR21_GA4_REFRESH_TOKEN")
+        })
+      : null;
+    const gscAccess = gscEnabled
+      ? await getGoogleAccessToken({
+          clientId: requireEnv("MAR21_GSC_CLIENT_ID"),
+          clientSecret: requireEnv("MAR21_GSC_CLIENT_SECRET"),
+          refreshToken: requireEnv("MAR21_GSC_REFRESH_TOKEN")
+        })
+      : null;
+
+    const ga4Req = ga4Enabled
+      ? {
+          propertyId: ga4PropertyId || requireEnv("MAR21_GA4_PROPERTY_ID"),
+          since: ctx.since,
+          dimensions: ["sessionDefaultChannelGroup"],
+          metrics: ["sessions", "totalUsers"],
+          limit: 50
+        }
+      : null;
+    const gscReq = gscEnabled
+      ? {
+          siteUrl: gscSiteUrl || requireEnv("MAR21_GSC_SITE_URL"),
+          since: ctx.since,
+          dimensions: ["query"] as Array<"query" | "page" | "country" | "device">,
+          rowLimit: 100
+        }
+      : null;
+
+    const ga4Data = ga4Req
+      ? (() => {
+          const key = cacheKey({ cap: "ga4.read.report.run", ...ga4Req });
+          const cached = readCache("ga4", key);
+          return { key, cached };
+        })()
+      : null;
+    const gscData = gscReq
+      ? (() => {
+          const key = cacheKey({ cap: "gsc.read.search_analytics.query", ...gscReq });
+          const cached = readCache("gsc", key);
+          return { key, cached };
+        })()
+      : null;
+
+    const ga4Payload =
+      ga4Req && ga4Access
+        ? ga4Data?.cached ?? (await ga4RunReport({ accessToken: ga4Access.accessToken, ...ga4Req }))
+        : { configured: false, reason: "ga4 not configured" };
+    const gscPayload =
+      gscReq && gscAccess
+        ? gscData?.cached ?? (await gscSearchAnalyticsQuery({ accessToken: gscAccess.accessToken, ...gscReq }))
+        : { configured: false, reason: "gsc not configured" };
+
+    if (ga4Req && ga4Access && ga4Data && !ga4Data.cached) {
+      writeCache("ga4", ga4Data.key, { fetchedAt: new Date().toISOString(), request: ga4Req, data: ga4Payload });
+    }
+    if (gscReq && gscAccess && gscData && !gscData.cached) {
+      writeCache("gsc", gscData.key, { fetchedAt: new Date().toISOString(), request: gscReq, data: gscPayload });
+    }
+
+    ctx.writeJson("outputs/evidence/ga4_report.json", ga4Payload);
+    ctx.writeJson("outputs/evidence/gsc_queries.json", gscPayload);
+
+    const report = `# Report — weekly_review\n\n## Evidence (this run)\n- GA4: \`outputs/evidence/ga4_report.json\`\n- GSC: \`outputs/evidence/gsc_queries.json\`\n\n## Notes\n- GA4 and GSC use different attribution and measurement assumptions. Treat them as complementary.\n- End dates default to “yesterday” (UTC) to avoid partial-day volatility.\n\n## Next actions\n- Turn the top movers into hypotheses and ship draft variants (landing page + ads + email) linked to UTMs.\n`;
+    ctx.writeText("outputs/report.md", report);
+
+    return {
+      outputs: { ga4EvidenceRef: "outputs/evidence/ga4_report.json", gscEvidenceRef: "outputs/evidence/gsc_queries.json" }
+    };
   }
 };
 
@@ -246,7 +371,10 @@ function requireImpl(skillId: string): SkillImpl {
   return impl;
 }
 
-export function executeSkillPipeline(args: { ctx: RunContext; steps: SkillStep[] }): SkillExecutionResult[] {
+export async function executeSkillPipeline(args: {
+  ctx: RunContext;
+  steps: SkillStep[];
+}): Promise<SkillExecutionResult[]> {
   const defs = discoverSkills(args.ctx.repoRoot);
   const byId = new Map<string, SkillDefinition>(defs.map((d) => [d.manifest.id, d]));
 
@@ -268,7 +396,7 @@ export function executeSkillPipeline(args: { ctx: RunContext; steps: SkillStep[]
     }
 
     const impl = requireImpl(step.skillId);
-    const { outputs, ops } = impl({ ctx: args.ctx, inputs });
+    const { outputs, ops } = await Promise.resolve(impl({ ctx: args.ctx, inputs }));
 
     const outputErrors = validateWithSchema(ajv, def.manifest.outputs.schema, outputs);
     if (outputErrors.length > 0) {

@@ -1,0 +1,43 @@
+apiVersion: mar21/skill-v1
+id: analytics.weekly_review_evidence
+domain: analytics
+description: "Pull GA4 + GSC evidence (read-only) and render an evidence-backed weekly review stub."
+
+inputs:
+  schema:
+    type: object
+    additionalProperties: true
+    properties:
+      ga4PropertyId:
+        type: string
+        description: "GA4 property id (overrides env MAR21_GA4_PROPERTY_ID if set)."
+      gscSiteUrl:
+        type: string
+        description: "GSC site URL (overrides env MAR21_GSC_SITE_URL if set)."
+
+outputs:
+  schema:
+    type: object
+    required: [ga4EvidenceRef, gscEvidenceRef]
+    additionalProperties: true
+    properties:
+      ga4EvidenceRef: { type: string }
+      gscEvidenceRef: { type: string }
+
+usesConnectors:
+  - ga4.read.report.run
+  - gsc.read.search_analytics.query
+
+risk:
+  level: low
+  writes: false
+
+artifacts:
+  produces:
+    - outputs/evidence/ga4_report.json
+    - outputs/evidence/gsc_queries.json
+    - outputs/report.md
+
+idempotency:
+  strategy: snapshot_based
+
