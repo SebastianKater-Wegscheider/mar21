@@ -47,6 +47,28 @@
             "additionalProperties": { "type": "string" },
             "default": {}
           },
+          "capabilities": {
+            "type": "array",
+            "default": [],
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["capabilityId", "toolName"],
+              "properties": {
+                "capabilityId": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9]+\\.[a-z0-9]+\\.[a-z0-9_.-]+\\.[a-z0-9_.-]+$"
+                },
+                "toolName": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            }
+          },
           "url": {
             "type": "string",
             "minLength": 1,
@@ -71,4 +93,3 @@
     }
   }
 }
-
