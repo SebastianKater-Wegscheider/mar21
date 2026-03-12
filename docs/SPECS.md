@@ -1,6 +1,6 @@
 # mar21 Specs (Interfaces + File Formats)
 
-This document defines the **stable surface** of `mar21`. These contracts are designed to be implemented by a CLI agent and to remain stable as tools and models evolve.
+This document defines the **stable surface** of `mar21`. These contracts are designed to be implemented by a CLI/agent runtime and to remain stable as tools and models evolve — so you can run **agentic marketing** while staying **in control**.
 
 Principles:
 - **YAML for human-first config and ops**, JSON for logs/metrics
