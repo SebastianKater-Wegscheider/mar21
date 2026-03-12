@@ -81,6 +81,10 @@ function safeJoin(baseDir: string, relativePath: string): string {
   return resolved;
 }
 
+function normalizePathRef(ref: string): string {
+  return ref.replace(/\\/g, "/");
+}
+
 function appendLogLine(runDir: string, event: Record<string, unknown>): void {
   const logsPath = path.join(runDir, "logs.jsonl");
   const line = JSON.stringify({ ts: nowIso(), level: "info", ...event });
@@ -303,8 +307,8 @@ function deepMerge(a: unknown, b: unknown): unknown {
 }
 
 function applyMemoryUpdate(wsRoot: string, runDir: string, op: ChangeSetOp): { file: string } {
-  const file = String(op.params?.file ?? "").trim();
-  const patchRef = String(op.params?.patchRef ?? "").trim();
+  const file = normalizePathRef(String(op.params?.file ?? "").trim());
+  const patchRef = normalizePathRef(String(op.params?.patchRef ?? "").trim());
   if (!file) throw new Error("memory.update missing params.file");
   if (!patchRef) throw new Error("memory.update missing params.patchRef");
 
