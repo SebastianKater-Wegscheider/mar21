@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20.x"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.5
+          run_install: false
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build CLI
+        run: pnpm -C packages/cli build
+
+      - name: Validate schemas/examples
+        run: node packages/cli/dist/index.js validate --examples
+
+      - name: Smoke (init/plan/apply)
+        run: |
+          node packages/cli/dist/index.js init --workspace ci --force
+          RUN_ID="$(MAR21_WORKSPACE=ci node packages/cli/dist/index.js plan deep_research_sparring --json | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>process.stdout.write(JSON.parse(d).runId));')"
+          MAR21_WORKSPACE=ci node packages/cli/dist/index.js apply "$RUN_ID" --yes --json > /dev/null
+          MAR21_WORKSPACE=ci node packages/cli/dist/index.js apply "$RUN_ID" --yes --json | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const x=JSON.parse(d);if(!x.results.every(r=>r.status==="skipped")){console.error("expected skipped on re-apply");process.exit(1)}})'
