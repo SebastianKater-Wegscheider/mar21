@@ -4,7 +4,17 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import YAML from "yaml";
-import { ga4RunReport, getGoogleAccessToken, gscSearchAnalyticsQuery, requireEnv } from "@mar21/connectors";
+import {
+  ga4RunReport,
+  getGoogleAccessToken,
+  gscSearchAnalyticsQuery,
+  requireEnv,
+  gdriveDownloadFile,
+  gdriveExportFile,
+  gdriveGetMetadata,
+  gdriveSearchFiles,
+  type DriveFile
+} from "@mar21/connectors";
 import type { SkillDefinition, SkillExecutionResult, SkillManifest, SkillStep, RunContext } from "./types.js";
 
 type Ajv2020Class = typeof import("ajv/dist/2020.js").default;
@@ -111,6 +121,93 @@ function opId(skillId: string, suffix: string): string {
   const safeSkill = skillId.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toLowerCase();
   const safeSuffix = suffix.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toLowerCase();
   return `${safeSkill}_${safeSuffix}`.slice(0, 64);
+}
+
+function sha256Hex(data: Uint8Array): string {
+  return createHash("sha256").update(data).digest("hex");
+}
+
+function sanitizeModifiedTime(modifiedTime: string | undefined): string {
+  if (!modifiedTime) return "unknown";
+  const s = modifiedTime.trim();
+  if (!s) return "unknown";
+  return s.replace(/[^0-9TZ]/g, "");
+}
+
+function extForContentType(contentType: string): string {
+  const ct = contentType.split(";")[0]?.trim().toLowerCase();
+  if (ct === "text/plain") return "txt";
+  if (ct === "text/csv") return "csv";
+  if (ct === "application/pdf") return "pdf";
+  if (ct === "application/json") return "json";
+  if (ct === "text/markdown") return "md";
+  return "bin";
+}
+
+function extFromName(name: string | undefined): string | null {
+  if (!name) return null;
+  const base = name.trim();
+  if (!base) return null;
+  const idx = base.lastIndexOf(".");
+  if (idx === -1) return null;
+  const ext = base.slice(idx + 1).toLowerCase();
+  if (!/^[a-z0-9]{1,8}$/.test(ext)) return null;
+  return ext;
+}
+
+function looksLikeEmail(text: string): boolean {
+  return /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(text);
+}
+
+function redactBasic(text: string): { redacted: string; stats: { emails: number; phones: number; longIds: number } } {
+  let out = text;
+  let emails = 0;
+  let phones = 0;
+  let longIds = 0;
+
+  out = out.replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi, () => {
+    emails += 1;
+    return "[REDACTED_EMAIL]";
+  });
+
+  out = out.replace(/(\+?\d[\d\s().-]{7,}\d)/g, () => {
+    phones += 1;
+    return "[REDACTED_PHONE]";
+  });
+
+  out = out.replace(/(?=[A-Za-z0-9_-]{24,})(?=.*\d)[A-Za-z0-9_-]+/g, (m) => {
+    longIds += 1;
+    return `[REDACTED_ID:${Math.min(8, m.length)}]`;
+  });
+
+  return { redacted: out, stats: { emails, phones, longIds } };
+}
+
+function firstNChars(bytes: Uint8Array, n: number): string {
+  const txt = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  if (txt.length <= n) return txt;
+  return txt.slice(0, n);
+}
+
+function csvPreviewToMarkdown(csvText: string, maxLines = 25): string {
+  const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  const head = lines.slice(0, maxLines);
+  return ["```csv", ...head, "```", ""].join("\n");
+}
+
+function cachePathsForDrive(args: {
+  workspaceRoot: string;
+  fileId: string;
+  modifiedTime: string | undefined;
+  mode: "export" | "download";
+  ext: string;
+}): { rawPath: string; sidecarPath: string; cacheRef: string } {
+  const mod = sanitizeModifiedTime(args.modifiedTime);
+  const relDir = path.join("cache", "private", "gdrive", args.fileId, mod);
+  const rawName = `${args.mode}.${args.ext}`;
+  const rawPath = path.join(args.workspaceRoot, relDir, rawName);
+  const sidecarPath = `${rawPath}.json`;
+  return { rawPath, sidecarPath, cacheRef: path.join(relDir, rawName).replace(/\\/g, "/") };
 }
 
 const IMPLS: Record<string, SkillImpl> = {
@@ -361,6 +458,310 @@ const IMPLS: Record<string, SkillImpl> = {
 
     return {
       outputs: { ga4EvidenceRef: "outputs/evidence/ga4_report.json", gscEvidenceRef: "outputs/evidence/gsc_queries.json" }
+    };
+  },
+
+  "research.gdrive_ingest": async ({ ctx, inputs }) => {
+    const fileIds = Array.isArray((inputs as any).fileIds) ? (inputs as any).fileIds.map(String) : [];
+    const folderIds = Array.isArray((inputs as any).folderIds) ? (inputs as any).folderIds.map(String) : [];
+    const query = (inputs as any).query === null ? null : (inputs as any).query ? String((inputs as any).query) : null;
+    const limitsIn = (inputs as any).limits ?? {};
+    const maxDownloads =
+      typeof limitsIn.maxDownloads === "number" && limitsIn.maxDownloads >= 0 ? limitsIn.maxDownloads : 10;
+    const maxFileSizeMB =
+      typeof limitsIn.maxFileSizeMB === "number" && limitsIn.maxFileSizeMB >= 0 ? limitsIn.maxFileSizeMB : 25;
+
+    if (fileIds.length === 0 && folderIds.length === 0 && (!query || query.trim().length === 0)) {
+      const err = new Error("gdrive_ingest requires fileIds, folderIds, or query") as Error & { exitCode?: number };
+      err.exitCode = 2;
+      throw err;
+    }
+
+    const required = ["MAR21_GDRIVE_CLIENT_ID", "MAR21_GDRIVE_CLIENT_SECRET", "MAR21_GDRIVE_REFRESH_TOKEN"] as const;
+    const missing = required.filter((n) => !process.env[n] || process.env[n]?.trim().length === 0);
+    if (missing.length > 0) {
+      const err = new Error(`missing required env var(s) for gdrive: ${missing.join(", ")}`) as Error & {
+        exitCode?: number;
+      };
+      err.exitCode = 20;
+      throw err;
+    }
+
+    const access = await getGoogleAccessToken({
+      clientId: process.env.MAR21_GDRIVE_CLIENT_ID!.trim(),
+      clientSecret: process.env.MAR21_GDRIVE_CLIENT_SECRET!.trim(),
+      refreshToken: process.env.MAR21_GDRIVE_REFRESH_TOKEN!.trim()
+    });
+
+    const discovered: DriveFile[] = [];
+    if (query || folderIds.length > 0) {
+      for (const folderId of folderIds.length > 0 ? folderIds : [null]) {
+        const res = await gdriveSearchFiles({
+          accessToken: access.accessToken,
+          query,
+          folderId,
+          limit: 50
+        });
+        for (const f of res.files) discovered.push(f);
+      }
+    }
+
+    const allIds = new Set<string>([...fileIds, ...discovered.map((f) => f.id).filter(Boolean)]);
+    const candidates = Array.from(allIds)
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0)
+      .slice(0, 500);
+
+    const metas: DriveFile[] = [];
+    for (const id of candidates) {
+      try {
+        const m = await gdriveGetMetadata({ accessToken: access.accessToken, fileId: id });
+        metas.push(m);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        ctx.log({ event: "gdrive.meta.failed", fileId: id, error: msg });
+      }
+    }
+
+    const planned = metas
+      .filter((m) => m.mimeType !== "application/vnd.google-apps.folder")
+      .filter((m) => m.mimeType !== "application/vnd.google-apps.shortcut")
+      .map((m) => ({
+      fileId: m.id,
+      name: m.name ?? "",
+      mimeType: m.mimeType ?? "",
+      modifiedTime: m.modifiedTime,
+      sizeBytes: m.size ? Number(m.size) : null
+    }));
+
+    const plannedOrdered = [...planned].sort((a, b) => {
+      const am = a.modifiedTime ?? "";
+      const bm = b.modifiedTime ?? "";
+      if (am !== bm) return bm.localeCompare(am); // newest first
+      if (a.fileId !== b.fileId) return a.fileId.localeCompare(b.fileId);
+      return a.name.localeCompare(b.name);
+    });
+
+    const maxFileBytes = maxFileSizeMB * 1024 * 1024;
+    const oversized = new Set(
+      plannedOrdered
+        .filter((p) => p.sizeBytes !== null && p.sizeBytes > maxFileBytes)
+        .map((p) => p.fileId)
+    );
+
+    const withinSize = plannedOrdered.filter((p) => !oversized.has(p.fileId));
+    const allowed = withinSize.slice(0, maxDownloads);
+    const allowedIds = new Set(allowed.map((p) => p.fileId));
+
+    const skippedItems: Array<{ fileId: string; reason: "over_maxFileSizeMB" | "over_maxDownloads"; sizeBytes: number | null }> =
+      [];
+    for (const p of plannedOrdered) {
+      if (oversized.has(p.fileId)) {
+        skippedItems.push({ fileId: p.fileId, reason: "over_maxFileSizeMB", sizeBytes: p.sizeBytes });
+      } else if (!allowedIds.has(p.fileId)) {
+        skippedItems.push({ fileId: p.fileId, reason: "over_maxDownloads", sizeBytes: p.sizeBytes });
+      }
+    }
+
+    const plannedExportCount = plannedOrdered.filter((p) => p.mimeType.startsWith("application/vnd.google-apps.")).length;
+    const plannedDownloadCount = plannedOrdered.length - plannedExportCount;
+    const approxMB = plannedOrdered.reduce((sum, p) => sum + (p.sizeBytes ? p.sizeBytes / (1024 * 1024) : 0), 0) || 0;
+
+    const capsExceeded = skippedItems.length > 0;
+    const decision = capsExceeded
+      ? await ctx.confirmSensitiveRead({
+          kind: plannedExportCount > 0 && plannedDownloadCount === 0 ? "gdrive_export" : "gdrive_download",
+          count: plannedOrdered.length,
+          approxMB,
+          reason: `caps exceeded: planned=${plannedOrdered.length}, allowed=${allowed.length}, skipped=${skippedItems.length} (maxDownloads=${maxDownloads}, maxFileSizeMB=${maxFileSizeMB})`
+        })
+      : null;
+
+    const toIngest = capsExceeded ? (decision ? plannedOrdered : allowed) : plannedOrdered;
+
+    fs.mkdirSync(path.join(ctx.workspaceRoot, "cache", "private", "gdrive"), { recursive: true });
+
+    const evidence: Array<{
+      id: string;
+      sourceRef: string;
+      derivedFrom: string;
+      path: string;
+      contentType: string;
+      redacted: boolean;
+      sha256: string;
+      notes?: string;
+    }> = [];
+
+    const sources: Array<Record<string, unknown>> = [];
+    const accessedDate = new Date().toISOString().slice(0, 10);
+
+    let sourceN = 0;
+    for (const m of toIngest) {
+      try {
+        const sourceRef = `drive:fileId:${m.fileId}`;
+
+        const isGoogleNative = m.mimeType.startsWith("application/vnd.google-apps.");
+        const exportMime =
+          m.mimeType === "application/vnd.google-apps.document"
+            ? "text/plain"
+            : m.mimeType === "application/vnd.google-apps.spreadsheet"
+              ? "text/csv"
+              : m.mimeType === "application/vnd.google-apps.presentation"
+                ? "application/pdf"
+                : null;
+
+        const mode: "export" | "download" = isGoogleNative && exportMime ? "export" : "download";
+        const expectedContentType = mode === "export" && exportMime ? exportMime : "application/octet-stream";
+        const expectedExt =
+          mode === "export" ? extForContentType(expectedContentType) : extFromName(m.name) ?? "bin";
+
+        const { rawPath, sidecarPath, cacheRef } = cachePathsForDrive({
+          workspaceRoot: ctx.workspaceRoot,
+          fileId: m.fileId,
+          modifiedTime: m.modifiedTime,
+          mode,
+          ext: expectedExt
+        });
+        fs.mkdirSync(path.dirname(rawPath), { recursive: true });
+
+        // Cache-only raw retention: keep raw bytes out of run folder.
+        let sha = "";
+        let cachedContentType: string | null = null;
+        if (fs.existsSync(rawPath) && fs.existsSync(sidecarPath)) {
+          try {
+            const side = JSON.parse(fs.readFileSync(sidecarPath, "utf-8")) as any;
+            if (typeof side.sha256 === "string" && side.sha256.length >= 16) sha = side.sha256;
+            if (typeof side.contentType === "string" && side.contentType.length > 0) cachedContentType = side.contentType;
+          } catch {
+            // ignore
+          }
+        }
+
+        let bytes: Uint8Array;
+        let contentType: string;
+        let note = "";
+
+        const cacheHit = Boolean(sha) && fs.existsSync(rawPath);
+        if (cacheHit) {
+          contentType = cachedContentType ?? expectedContentType;
+          note = "cache hit";
+          bytes =
+            contentType === "text/plain" || contentType === "text/csv"
+              ? new Uint8Array(fs.readFileSync(rawPath))
+              : new Uint8Array();
+        } else if (mode === "export" && exportMime) {
+          const res = await gdriveExportFile({
+            accessToken: access.accessToken,
+            fileId: m.fileId,
+            mimeType: exportMime
+          });
+          bytes = res.bytes;
+          contentType = exportMime;
+          note = `exported as ${exportMime}`;
+        } else {
+          const res = await gdriveDownloadFile({ accessToken: access.accessToken, fileId: m.fileId });
+          bytes = res.bytes;
+          contentType = res.contentType;
+          note = "downloaded raw";
+        }
+
+        if (!sha) {
+          sha = sha256Hex(bytes);
+          fs.writeFileSync(rawPath, bytes);
+          fs.writeFileSync(
+            sidecarPath,
+            `${JSON.stringify(
+              {
+                fetchedAt: new Date().toISOString(),
+                fileId: m.fileId,
+                name: m.name,
+                mimeType: m.mimeType,
+                modifiedTime: m.modifiedTime,
+                mode,
+                contentType,
+                bytes: bytes.length,
+                sha256: sha
+              },
+              null,
+              2
+            )}\n`,
+            "utf-8"
+          );
+        }
+
+        sourceN += 1;
+        const sourceId = `S${sourceN + 1}`; // reserve S1 for public placeholder
+        const evidenceId = `E${sourceN}`;
+        const excerptPath = `outputs/evidence/gdrive_${m.fileId}.md`;
+
+        let excerpt = `# Drive excerpt\n\n- source: ${sourceRef}\n- name: ${m.name || "(unknown)"}\n- mimeType: ${m.mimeType}\n- cached: ${cacheRef}\n- sha256: ${sha}\n- accessed: ${accessedDate}\n\n`;
+        let redacted = true;
+
+        if (contentType === "text/plain") {
+          const rawText = firstNChars(bytes, 4000);
+          const { redacted: r, stats } = redactBasic(rawText);
+          excerpt += `## Excerpt (first 4k chars)\n\n${r}\n\n`;
+          excerpt += `## Redaction\n\n- emails: ${stats.emails}\n- phones: ${stats.phones}\n- longIds: ${stats.longIds}\n\n`;
+        } else if (contentType === "text/csv") {
+          const rawText = firstNChars(bytes, 4000);
+          const { redacted: r, stats } = redactBasic(rawText);
+          excerpt += `## CSV preview (top rows)\n\n${csvPreviewToMarkdown(r)}\n`;
+          excerpt += `## Redaction\n\n- emails: ${stats.emails}\n- phones: ${stats.phones}\n- longIds: ${stats.longIds}\n\n`;
+        } else if (contentType === "application/pdf") {
+          excerpt += `## Note\n\nPDF stored in cache. Text extraction is not implemented in v0.1.\n\n`;
+        } else {
+          excerpt += `## Note\n\nBinary stored in cache. No excerpt extractor for contentType=${contentType} in v0.1.\n\n`;
+          redacted = true;
+        }
+
+        ctx.writeText(excerptPath, excerpt);
+
+        evidence.push({
+          id: evidenceId,
+          sourceRef,
+          derivedFrom: "private_doc",
+          path: excerptPath,
+          contentType: "text/markdown",
+          redacted,
+          sha256: sha,
+          notes: note
+        });
+
+        sources.push({
+          sourceId,
+          type: "private_doc",
+          sourceRef,
+          name: m.name ?? null,
+          mimeType: m.mimeType,
+          modifiedTime: m.modifiedTime ?? null,
+          accessedDate,
+          excerptRef: excerptPath,
+          sha256: sha
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        ctx.log({ event: "gdrive.ingest.failed", fileId: m.fileId, error: msg });
+      }
+    }
+
+    ctx.writeJson("outputs/evidence/evidence.json", evidence);
+    ctx.writeJson("outputs/evidence/gdrive_sources.json", {
+      skipped: capsExceeded && !decision,
+      plannedCount: plannedOrdered.length,
+      appliedCount: toIngest.length,
+      maxDownloads,
+      maxFileSizeMB,
+      capsExceeded,
+      operatorApprovedToExceed: decision,
+      skippedItems: capsExceeded && !decision ? skippedItems : [],
+      sources
+    });
+
+    return {
+      outputs: {
+        evidenceManifestRef: "outputs/evidence/evidence.json",
+        sourcesIndexRef: "outputs/evidence/gdrive_sources.json"
+      }
     };
   }
 };

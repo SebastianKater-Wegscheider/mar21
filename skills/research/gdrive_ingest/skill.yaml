@@ -1,0 +1,52 @@
+apiVersion: mar21/skill-v1
+id: research.gdrive_ingest
+domain: research
+description: "Ingest Google Drive sources into evidence artifacts (cache raw bytes, emit redacted excerpts)."
+
+inputs:
+  schema:
+    type: object
+    additionalProperties: true
+    properties:
+      fileIds:
+        type: array
+        items: { type: string }
+      folderIds:
+        type: array
+        items: { type: string }
+      query:
+        type: ["string", "null"]
+      limits:
+        type: object
+        additionalProperties: true
+        properties:
+          maxDownloads: { type: number, minimum: 0 }
+          maxFileSizeMB: { type: number, minimum: 0 }
+
+outputs:
+  schema:
+    type: object
+    required: [evidenceManifestRef, sourcesIndexRef]
+    additionalProperties: true
+    properties:
+      evidenceManifestRef: { type: string }
+      sourcesIndexRef: { type: string }
+
+usesConnectors:
+  - gdrive.read.files.search
+  - gdrive.read.files.get_metadata
+  - gdrive.read.files.export
+  - gdrive.read.files.download
+
+risk:
+  level: medium
+  writes: false
+
+artifacts:
+  produces:
+    - outputs/evidence/evidence.json
+    - outputs/evidence/gdrive_sources.json
+
+idempotency:
+  strategy: snapshot_based
+
