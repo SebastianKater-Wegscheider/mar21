@@ -19,6 +19,7 @@ Env vars (suggested):
 Non-negotiables:
 - cite by `drive:fileId:<id>` in `outputs/research_pack.md`
 - store **excerpts** in `outputs/evidence/` by default, not full documents
+- store raw bytes **cache-only** under `workspaces/<ws>/cache/private/gdrive/…` (never in run folders by default)
 - redact names/emails and other PII in excerpts
 - never log tokenized private URLs
 
@@ -47,4 +48,3 @@ If caps are exceeded, the CLI must prompt for confirmation and record the decisi
 ## Explicitly later
 - Creating/modifying Drive files (high risk)
 - Auto-sharing or permission changes (out of scope)
-
