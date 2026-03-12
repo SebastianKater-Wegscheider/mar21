@@ -1,0 +1,19 @@
+{
+  "name": "mar21",
+  "private": true,
+  "packageManager": "pnpm@9.15.5",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -C packages/cli dev",
+    "lint": "echo \"lint: TODO\"",
+    "test": "echo \"test: TODO\"",
+    "validate": "pnpm -C packages/cli dev -- validate --examples"
+  }
+}
+
