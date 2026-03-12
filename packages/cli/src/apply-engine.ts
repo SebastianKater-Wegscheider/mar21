@@ -10,6 +10,7 @@ type ChangeSetOp = {
   operation: string;
   risk: "low" | "medium" | "high";
   requiresApproval: boolean;
+  idempotencyKey?: string;
   params: Record<string, unknown>;
   rollbackHint?: string;
   evidenceRef?: string[];
@@ -34,7 +35,7 @@ type ApprovalRecord = {
 
 type ApplyResult = {
   opId: string;
-  status: "applied" | "rejected" | "failed";
+  status: "applied" | "skipped" | "rejected" | "failed";
   message?: string;
 };
 
@@ -49,6 +50,18 @@ export type ApplySummary = {
   runId: string;
   workspace: string;
   results: ApplyResult[];
+};
+
+type ApplyState = {
+  apiVersion: "mar21/apply-v1";
+  runId: string;
+  ops: Array<{
+    opId: string;
+    idempotencyKey?: string;
+    status: "applied" | "failed" | "rejected";
+    at: string;
+    message?: string;
+  }>;
 };
 
 function nowIso(): string {
@@ -85,6 +98,50 @@ function readApprovals(runDir: string): ApprovalRecord[] {
 function writeApprovals(runDir: string, approvals: ApprovalRecord[]): void {
   const approvalsPath = path.join(runDir, "approvals.json");
   fs.writeFileSync(approvalsPath, `${JSON.stringify(approvals, null, 2)}\n`, "utf-8");
+}
+
+function readApplyState(runDir: string, runId: string): ApplyState {
+  const p = path.join(runDir, "apply.json");
+  if (!fs.existsSync(p)) return { apiVersion: "mar21/apply-v1", runId, ops: [] };
+  try {
+    const raw = fs.readFileSync(p, "utf-8");
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      (parsed as any).apiVersion === "mar21/apply-v1" &&
+      Array.isArray((parsed as any).ops)
+    ) {
+      return parsed as ApplyState;
+    }
+  } catch {
+    // ignore and start fresh
+  }
+  return { apiVersion: "mar21/apply-v1", runId, ops: [] };
+}
+
+function writeApplyState(runDir: string, state: ApplyState): void {
+  const p = path.join(runDir, "apply.json");
+  fs.writeFileSync(p, `${JSON.stringify(state, null, 2)}\n`, "utf-8");
+}
+
+function alreadyApplied(state: ApplyState, op: ChangeSetOp): boolean {
+  if (state.ops.some((r) => r.opId === op.id && r.status === "applied")) return true;
+  if (!op.idempotencyKey) return false;
+  return state.ops.some((r) => r.idempotencyKey === op.idempotencyKey && r.status === "applied");
+}
+
+function recordApplyState(state: ApplyState, op: ChangeSetOp, status: ApplyState["ops"][number]["status"], message?: string): void {
+  const existingIdx = state.ops.findIndex((r) => r.opId === op.id);
+  const rec = {
+    opId: op.id,
+    idempotencyKey: op.idempotencyKey,
+    status,
+    at: nowIso(),
+    message
+  };
+  if (existingIdx === -1) state.ops.push(rec);
+  else state.ops[existingIdx] = rec;
 }
 
 async function promptApprove(op: ChangeSetOp, promptTo: NodeJS.WritableStream): Promise<boolean> {
@@ -152,7 +209,14 @@ function applyTodoCreate(
   if (!title) throw new Error("todo.create missing params.task.title");
 
   const taskId = String(taskParam.taskId ?? nextTaskId(tasks));
-  if (tasks.some((t) => t.taskId === taskId)) throw new Error(`task already exists: ${taskId}`);
+  const existing = tasks.find((t) => t.taskId === taskId);
+  if (existing) {
+    const createdBy = existing?.createdBy;
+    if (createdBy?.runId === runId && createdBy?.opId === op.id) {
+      return { taskId, title: String(existing.title ?? title) };
+    }
+    throw new Error(`task already exists: ${taskId}`);
+  }
 
   const createdAt = nowIso();
   const task = {
@@ -322,11 +386,18 @@ export async function applyRunChangeset(opts: ApplyOptions): Promise<{ summary: 
   appendLogLine(runDir, { event: "apply.started", runId: opts.runId });
 
   const approvals = readApprovals(runDir);
+  const applyState = readApplyState(runDir, opts.runId);
   const results: ApplyResult[] = [];
 
   const promptTo = opts.json ? process.stderr : process.stdout;
 
   for (const op of cs.ops ?? []) {
+    if (alreadyApplied(applyState, op)) {
+      appendLogLine(runDir, { event: "apply.op.skipped", opId: op.id, reason: "already_applied" });
+      results.push({ opId: op.id, status: "skipped" });
+      continue;
+    }
+
     try {
       let approved = true;
       if (op.requiresApproval) {
@@ -348,6 +419,8 @@ export async function applyRunChangeset(opts: ApplyOptions): Promise<{ summary: 
         });
 
         if (!approved) {
+          recordApplyState(applyState, op, "rejected");
+          writeApplyState(runDir, applyState);
           results.push({ opId: op.id, status: "rejected" });
           continue;
         }
@@ -357,10 +430,14 @@ export async function applyRunChangeset(opts: ApplyOptions): Promise<{ summary: 
 
       const msg = applyMar21Op(wsRoot, runDir, opts.runId, op);
       appendLogLine(runDir, { event: "apply.op.applied", opId: op.id, message: msg });
+      recordApplyState(applyState, op, "applied", msg);
+      writeApplyState(runDir, applyState);
       results.push({ opId: op.id, status: "applied", message: msg });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       appendLogLine(runDir, { event: "apply.op.failed", opId: op.id, error: msg });
+      recordApplyState(applyState, op, "failed", msg);
+      writeApplyState(runDir, applyState);
       results.push({ opId: op.id, status: "failed", message: msg });
     }
   }

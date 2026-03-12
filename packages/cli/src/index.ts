@@ -164,9 +164,11 @@ program
       }
 
       const failed = summary.results.filter((r) => r.status === "failed");
+      const skipped = summary.results.filter((r) => r.status === "skipped");
       const rejected = summary.results.filter((r) => r.status === "rejected");
       console.log(`✓ apply finished: ${summary.runId}`);
       if (failed.length) console.log(`  - failed ops: ${failed.length}`);
+      if (skipped.length) console.log(`  - skipped ops: ${skipped.length}`);
       if (rejected.length) console.log(`  - rejected ops: ${rejected.length}`);
       process.exit(exitCode);
     }
