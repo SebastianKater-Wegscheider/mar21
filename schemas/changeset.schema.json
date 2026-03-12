@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mar21:schema:changeset:v1",
+  "title": "mar21 ChangeSet (v1)",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["apiVersion", "runId", "workspace", "mode", "ops"],
+  "properties": {
+    "apiVersion": { "const": "mar21/changeset-v1" },
+    "runId": { "type": "string", "minLength": 10 },
+    "workspace": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,31}$" },
+    "mode": { "enum": ["advisory", "supervised", "autonomous"] },
+    "ops": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "tool", "operation", "risk", "requiresApproval", "params"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "tool": { "type": "string", "minLength": 1 },
+          "operation": { "type": "string", "minLength": 1 },
+          "risk": { "enum": ["low", "medium", "high"] },
+          "requiresApproval": { "type": "boolean" },
+          "idempotencyKey": { "type": "string" },
+          "params": { "type": "object", "additionalProperties": true },
+          "expectedImpact": { "type": "object", "additionalProperties": true },
+          "evidenceRef": { "type": "array", "items": { "type": "string" } },
+          "rollbackHint": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+

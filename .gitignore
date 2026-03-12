@@ -1,3 +1,18 @@
-# Keep this repository intentionally empty for now.
-.DS_Store
+# Node / TS
+node_modules/
+dist/
+.turbo/
+.cache/
 
+# Env / secrets
+.env
+.env.*
+
+# Runs / caches (generated)
+**/runs/
+**/cache/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

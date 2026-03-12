@@ -1,0 +1,50 @@
+apiVersion: mar21/v1
+workspace: acme
+
+company:
+  name: ACME Inc.
+  industry: "B2B SaaS"
+  region: EU
+  languages: [en, de]
+
+businessModel:
+  segment: b2b_saas
+  monetization: subscription
+  pricing:
+    avgOrderValue: null
+    avgContractValue: 1200
+    currency: EUR
+
+goToMarket:
+  stage: scale
+  channels:
+    seo: { enabled: true, primary: true }
+    paid_social: { enabled: true, primary: false }
+    lifecycle_email: { enabled: true, primary: true }
+
+goals:
+  primaryKpi: pipeline
+  secondaryKpis: [traffic, leads, activation]
+  kpiTree:
+    pipeline:
+      leading: [mqls, sqls]
+      lagging: [closed_won]
+
+constraints:
+  compliance:
+    gdpr: true
+    sensitiveData: false
+  brandVoice:
+    tone: professional
+    doNotSay: ["guaranteed", "best in class"]
+  autonomy:
+    defaultMode: supervised
+    allowlist: []
+  budgets:
+    monthly:
+      total: 8000
+      breakdown:
+        meta_ads: 4000
+        content: 1500
+        tools: 500
+

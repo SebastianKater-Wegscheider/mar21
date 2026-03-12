@@ -1,0 +1,40 @@
+apiVersion: mar21/distribution-plan-v1
+runId: 2026-03-12T090000Z_distribution_weekly
+workspace: acme
+since: P7D
+
+goal:
+  kpiNode: pipeline
+  target: "SQLs +10% (P28D)"
+
+sourceAssets:
+  - assetId: wp_post_category-entry-point_2026-03_v1
+    type: pillar
+    status: draft
+
+channels:
+  owned:
+    - id: wordpress
+      cadence: weekly
+    - id: email
+      provider: klaviyo
+      cadence: weekly
+  paid:
+    - id: meta_ads
+      cadence: ongoing
+  earned:
+    - id: pr
+      cadence: weekly
+    - id: community
+      cadence: weekly
+    - id: partnerships
+      cadence: monthly
+
+repurposingPolicy:
+  maxDerivedAssetsPerSource: 6
+  requireDistinctiveAssets: true
+  requirePlainLanguage: true
+
+tracking:
+  utmRequired: true
+

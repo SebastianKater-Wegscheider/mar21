@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mar21:schema:creative-brief:v1",
+  "title": "mar21 Creative Brief (v1)",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["apiVersion", "runId", "workspace", "goal", "audience", "offer", "message", "constraints", "tracking"],
+  "properties": {
+    "apiVersion": { "const": "mar21/creative-brief-v1" },
+    "runId": { "type": "string", "minLength": 10 },
+    "workspace": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,31}$" },
+    "goal": { "type": "object", "additionalProperties": true },
+    "audience": { "type": "object", "additionalProperties": true },
+    "offer": { "type": "object", "additionalProperties": true },
+    "message": { "type": "object", "additionalProperties": true },
+    "constraints": { "type": "object", "additionalProperties": true },
+    "tracking": { "type": "object", "additionalProperties": true }
+  }
+}
+

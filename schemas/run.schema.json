@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mar21:schema:run:v1",
+  "title": "mar21 Run Metadata (v1)",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["apiVersion", "runId", "workspace", "workflowId", "mode", "startedAt"],
+  "properties": {
+    "apiVersion": { "const": "mar21/run-v1" },
+    "runId": { "type": "string", "minLength": 10 },
+    "workspace": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,31}$" },
+    "workflowId": { "type": "string", "minLength": 1 },
+    "mode": { "enum": ["advisory", "supervised", "autonomous"] },
+    "since": { "type": "string" },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": "string", "format": "date-time" },
+    "connectorsUsed": { "type": "array", "items": { "type": "string" } },
+    "writesAttempted": { "type": "boolean" }
+  }
+}
+

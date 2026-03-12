@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mar21:schema:asset-manifest:v1",
+  "title": "mar21 Asset Manifest (v1)",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["apiVersion", "runId", "workspace", "assets"],
+  "properties": {
+    "apiVersion": { "const": "mar21/asset-manifest-v1" },
+    "runId": { "type": "string", "minLength": 10 },
+    "workspace": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,31}$" },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["assetId", "channel", "format", "status"],
+        "properties": {
+          "assetId": { "type": "string", "pattern": "^[a-z0-9_\\-]+$" },
+          "channel": { "type": "string", "minLength": 1 },
+          "format": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["planned", "draft", "active", "paused", "retired"] },
+          "briefRef": { "type": "string" },
+          "hypothesisRef": { "type": "string" },
+          "files": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "tracking": { "type": "object", "additionalProperties": true },
+          "measurement": { "type": "object", "additionalProperties": true }
+        }
+      }
+    }
+  }
+}
+

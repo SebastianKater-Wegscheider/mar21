@@ -1,0 +1,17 @@
+apiVersion: mar21/asset-manifest-v1
+runId: 2026-03-12T090000Z_meta_cleanup
+workspace: acme
+
+assets:
+  - assetId: meta_video_auditability_2026-03_v1
+    channel: meta_ads
+    format: video
+    status: planned
+    briefRef: outputs/creative_brief.yaml
+    hypothesisRef: HYP-001
+    tracking:
+      utm_campaign: prospecting_auditability
+    measurement:
+      primaryMetric: cpa
+      window: P7D
+

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mar21:schema:skill:v1",
+  "title": "mar21 Skill Manifest (v1)",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["apiVersion", "id", "domain", "description", "inputs", "outputs", "usesConnectors", "risk", "artifacts", "idempotency"],
+  "properties": {
+    "apiVersion": { "const": "mar21/skill-v1" },
+    "id": { "type": "string", "minLength": 3 },
+    "domain": { "type": "string", "minLength": 2 },
+    "description": { "type": "string", "minLength": 1 },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema"],
+      "properties": {
+        "schema": { "type": "object" }
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema"],
+      "properties": {
+        "schema": { "type": "object" }
+      }
+    },
+    "usesConnectors": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["level", "writes"],
+      "properties": {
+        "level": { "enum": ["none", "low", "medium", "high"] },
+        "writes": { "type": "boolean" }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["produces"],
+      "properties": {
+        "produces": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 3 }
+        }
+      }
+    },
+    "idempotency": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["strategy"],
+      "properties": {
+        "strategy": { "enum": ["pure", "snapshot_based", "tool_write"] }
+      }
+    }
+  }
+}
+

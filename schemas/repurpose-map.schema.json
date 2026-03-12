@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mar21:schema:repurpose-map:v1",
+  "title": "mar21 Repurpose Map (v1)",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["apiVersion", "runId", "workspace", "maps"],
+  "properties": {
+    "apiVersion": { "const": "mar21/repurpose-map-v1" },
+    "runId": { "type": "string", "minLength": 10 },
+    "workspace": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,31}$" },
+    "maps": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+  }
+}
+

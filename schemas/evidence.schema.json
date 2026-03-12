@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mar21:schema:evidence:v1",
+  "title": "mar21 Evidence Manifest (v1)",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": ["id", "sourceRef", "path", "contentType", "redacted"],
+    "properties": {
+      "id": { "type": "string", "minLength": 1 },
+      "sourceRef": { "type": "string", "minLength": 3 },
+      "derivedFrom": { "type": "string" },
+      "path": { "type": "string", "minLength": 3 },
+      "contentType": { "type": "string", "minLength": 3 },
+      "redacted": { "type": "boolean" },
+      "sha256": { "type": "string", "minLength": 16 },
+      "notes": { "type": "string" }
+    }
+  }
+}
+
