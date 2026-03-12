@@ -25,7 +25,7 @@ function repoRootFromCwd(): string {
   return process.cwd();
 }
 
-export function runCadence(opts: RunCadenceOptions): RunCadenceSummary {
+export async function runCadence(opts: RunCadenceOptions): Promise<RunCadenceSummary> {
   const repoRoot = repoRootFromCwd();
   const workspaceId = resolveWorkspaceId(opts.workspace);
   if (!workspaceId) {
@@ -47,7 +47,7 @@ export function runCadence(opts: RunCadenceOptions): RunCadenceSummary {
   const runs: RunSummary[] = [];
   for (const step of profile.steps) {
     runs.push(
-      runPlan(step.workflowId, {
+      await runPlan(step.workflowId, {
         workspace: workspaceId,
         mode: opts.mode ?? step.mode,
         since: opts.since ?? step.since,
@@ -58,4 +58,3 @@ export function runCadence(opts: RunCadenceOptions): RunCadenceSummary {
 
   return { cadence: opts.cadence, workspace: workspaceId, profileId: profile.id || profileId, runs };
 }
-

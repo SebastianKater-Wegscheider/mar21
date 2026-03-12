@@ -91,7 +91,7 @@ program
       opts.mode === "advisory" || opts.mode === "supervised" || opts.mode === "autonomous"
         ? opts.mode
         : undefined;
-      const summary = runPlan(workflowId, {
+    const summary = await runPlan(workflowId, {
         workspace: opts.workspace,
         mode,
         since: opts.since,
@@ -132,7 +132,7 @@ program
         opts.mode === "advisory" || opts.mode === "supervised" || opts.mode === "autonomous"
           ? opts.mode
           : undefined;
-      const summary = runAnalyze(scope, {
+      const summary = await runAnalyze(scope, {
         workspace: opts.workspace,
         mode,
         since: opts.since,
@@ -165,7 +165,7 @@ program
         json?: boolean;
       }
     ) => {
-      const summary = runReport(cadenceOrWorkflowId, {
+      const summary = await runReport(cadenceOrWorkflowId, {
         workspace: opts.workspace,
         since: opts.since,
         json: Boolean(opts.json)
@@ -213,7 +213,7 @@ program
         opts.mode === "advisory" || opts.mode === "supervised" || opts.mode === "autonomous"
           ? opts.mode
           : undefined;
-      const summary = runCadence({
+      const summary = await runCadence({
         cadence: c,
         workspace: opts.workspace,
         profile: opts.profile,
