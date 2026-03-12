@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import readline from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
 import { ensureDir, readYamlFile, resolveWorkspaceId, writeYamlFile } from "./workspace.js";
 
 type ChangeSetOp = {
@@ -88,15 +87,18 @@ function writeApprovals(runDir: string, approvals: ApprovalRecord[]): void {
   fs.writeFileSync(approvalsPath, `${JSON.stringify(approvals, null, 2)}\n`, "utf-8");
 }
 
-async function promptApprove(op: ChangeSetOp): Promise<boolean> {
-  const rl = readline.createInterface({ input, output });
+async function promptApprove(op: ChangeSetOp, promptTo: NodeJS.WritableStream): Promise<boolean> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: promptTo
+  });
   try {
-    output.write(`\nOperation: ${op.id}\n`);
-    output.write(`- tool: ${op.tool}\n`);
-    output.write(`- operation: ${op.operation}\n`);
-    output.write(`- risk: ${op.risk}\n`);
-    if (op.evidenceRef?.length) output.write(`- evidence: ${op.evidenceRef.join(", ")}\n`);
-    if (op.rollbackHint) output.write(`- rollback: ${op.rollbackHint}\n`);
+    promptTo.write(`\nOperation: ${op.id}\n`);
+    promptTo.write(`- tool: ${op.tool}\n`);
+    promptTo.write(`- operation: ${op.operation}\n`);
+    promptTo.write(`- risk: ${op.risk}\n`);
+    if (op.evidenceRef?.length) promptTo.write(`- evidence: ${op.evidenceRef.join(", ")}\n`);
+    if (op.rollbackHint) promptTo.write(`- rollback: ${op.rollbackHint}\n`);
 
     const answer = (await rl.question("Approve this operation? (y/n) ")).trim().toLowerCase();
     return answer === "y" || answer === "yes";
@@ -322,12 +324,14 @@ export async function applyRunChangeset(opts: ApplyOptions): Promise<{ summary: 
   const approvals = readApprovals(runDir);
   const results: ApplyResult[] = [];
 
+  const promptTo = opts.json ? process.stderr : process.stdout;
+
   for (const op of cs.ops ?? []) {
     try {
       let approved = true;
       if (op.requiresApproval) {
         if (opts.yes) approved = true;
-        else approved = await promptApprove(op);
+        else approved = await promptApprove(op, promptTo);
 
         approvals.push({
           opId: op.id,
