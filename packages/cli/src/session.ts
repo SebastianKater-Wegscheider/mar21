@@ -41,6 +41,43 @@ async function promptYesNo(prompt: string, defaultYes = true): Promise<boolean> 
   }
 }
 
+function readTextIfExists(p: string): string | null {
+  try {
+    if (!fs.existsSync(p)) return null;
+    return fs.readFileSync(p, "utf-8");
+  } catch {
+    return null;
+  }
+}
+
+function summarizeResearchPack(markdown: string, maxLines = 12): string[] {
+  const lines = markdown.split(/\r?\n/);
+  const startIdx = lines.findIndex((l) => l.trim().toLowerCase() === "## findings (stub)" || l.trim().toLowerCase() === "## findings");
+  const from = startIdx === -1 ? 0 : startIdx + 1;
+  const out: string[] = [];
+  for (let i = from; i < lines.length && out.length < maxLines; i += 1) {
+    const l = lines[i] ?? "";
+    if (l.trim().toLowerCase().startsWith("## sources")) break;
+    if (l.trim().length === 0) continue;
+    out.push(l);
+  }
+  return out;
+}
+
+function listNextActionsFromChangeset(wsRoot: string, runId: string): string[] {
+  const p = path.join(wsRoot, "runs", runId, "changeset.yaml");
+  const doc = fs.existsSync(p) ? (readYamlFile(p) as any) : null;
+  const ops = Array.isArray(doc?.ops) ? (doc.ops as any[]) : [];
+  const titles: string[] = [];
+  for (const op of ops) {
+    const operation = typeof op?.operation === "string" ? op.operation : "";
+    if (!operation.endsWith("todo.create") && operation !== "mar21.todo.create") continue;
+    const title = String(op?.params?.task?.title ?? "").trim();
+    if (title) titles.push(title);
+  }
+  return titles;
+}
+
 function extractDriveId(raw: string): { kind: "file" | "folder"; id: string } | null {
   const s = raw.trim();
   if (!s) return null;
@@ -195,28 +232,46 @@ export async function runSession(opts: SessionOptions): Promise<void> {
   });
 
   process.stdout.write(`✓ Research run created: ${researchRun.runId}\n`);
-  process.stdout.write(`  Read it: mar21 show ${researchRun.runId} research_pack --workspace ${workspaceId}\n`);
+  process.stdout.write(`  Read it: pnpm mar21 show ${researchRun.runId} research_pack --workspace ${workspaceId}\n`);
+
+  const rpPath = path.join(wsRoot, "runs", researchRun.runId, "outputs", "research_pack.md");
+  const rp = readTextIfExists(rpPath);
+  if (rp) {
+    const summary = summarizeResearchPack(rp, 10);
+    if (summary.length > 0) {
+      process.stdout.write("\nTop findings (excerpt)\n");
+      for (const l of summary) process.stdout.write(`  ${l}\n`);
+    }
+  }
+
+  const nextActions = listNextActionsFromChangeset(wsRoot, researchRun.runId);
+  if (nextActions.length > 0) {
+    process.stdout.write("\nSuggested next actions\n");
+    for (const t of nextActions.slice(0, 8)) process.stdout.write(`  - ${t}\n`);
+    if (nextActions.length > 8) process.stdout.write(`  (+${nextActions.length - 8} more)\n`);
+  }
 
   const applyNow = canPrompt ? await promptYesNo("Add suggested tasks to your backlog now?", true) : false;
   if (applyNow) {
-    const applied = await applyRunChangeset({ workspace: workspaceId, runId: researchRun.runId });
+    const applied = await applyRunChangeset({ workspace: workspaceId, runId: researchRun.runId, yes: true });
     if (applied.exitCode !== 0) {
       const err = new Error("apply had failures (see logs in the run folder)") as Error & { exitCode?: number };
       err.exitCode = applied.exitCode;
       throw err;
     }
-    process.stdout.write("✓ Backlog updated (todos.yaml)\n");
+    const appliedCount = applied.summary.results.filter((r) => r.status === "applied").length;
+    process.stdout.write(`✓ Backlog updated (${appliedCount} item(s) applied)\n`);
   } else {
-    process.stdout.write(`(Skipped apply) You can apply later: mar21 apply ${researchRun.runId} --workspace ${workspaceId}\n`);
+    process.stdout.write(`(Skipped) Apply later: pnpm mar21 apply ${researchRun.runId} --workspace ${workspaceId}\n`);
   }
 
   const doBrief = canPrompt ? await promptYesNo("Generate a landing page creative brief now?", true) : false;
   if (doBrief) {
     const briefRun = await runPlan("content_brief", { workspace: workspaceId, mode, since: "P0D" });
     process.stdout.write(`✓ Creative brief generated: ${briefRun.runId}\n`);
-    process.stdout.write(`  Show it: mar21 show ${briefRun.runId} creative_brief --workspace ${workspaceId}\n`);
+    process.stdout.write(`  Show it: pnpm mar21 show ${briefRun.runId} creative_brief --workspace ${workspaceId}\n`);
   }
 
   process.stdout.write("\nDone.\n");
-  process.stdout.write(`Next: mar21 show latest todos --workspace ${workspaceId}\n`);
+  process.stdout.write(`Next: pnpm mar21 show latest todos --workspace ${workspaceId}\n`);
 }
