@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import process from "node:process";
+import { validateExamples } from "./validate.js";
 
 const program = new Command();
 
@@ -21,8 +23,9 @@ program
   .command("validate")
   .description("Validate artifacts against schemas (v0.1: stub)")
   .option("--examples", "Validate examples/", false)
-  .action(() => {
-    console.log("mar21 validate: not implemented yet (see docs/SCHEMAS.md).");
+  .action((opts: { examples?: boolean }) => {
+    if (opts.examples) process.exit(validateExamples());
+    console.log("Nothing to validate. Use --examples for now.");
   });
 
 program
