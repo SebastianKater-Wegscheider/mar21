@@ -223,6 +223,12 @@ function mcpServersTemplate(connectors: ConnectorId[]): string {
       transport: "stdio",
       command: "npx",
       args: ["-y", "@modelcontextprotocol/server-gdrive"],
+      capabilities: [
+        { capabilityId: "gdrive.read.files.search", toolName: "gdrive.read.files.search" },
+        { capabilityId: "gdrive.read.files.get_metadata", toolName: "gdrive.read.files.get_metadata" },
+        { capabilityId: "gdrive.read.files.export", toolName: "gdrive.read.files.export" },
+        { capabilityId: "gdrive.read.files.download", toolName: "gdrive.read.files.download" }
+      ],
       env: {
         // NOTE: server env keys vary by implementation; adjust to match the chosen server README.
         MAR21_GDRIVE_CLIENT_ID: "${MAR21_GDRIVE_CLIENT_ID}",
@@ -239,6 +245,10 @@ function mcpServersTemplate(connectors: ConnectorId[]): string {
       transport: "stdio",
       command: "npx",
       args: ["-y", "@modelcontextprotocol/server-slack"],
+      capabilities: [
+        { capabilityId: "slack.read.messages.search", toolName: "slack.read.messages.search" },
+        { capabilityId: "slack.write.message.post", toolName: "slack.write.message.post" }
+      ],
       env: {
         MAR21_SLACK_BOT_TOKEN: "${MAR21_SLACK_BOT_TOKEN}"
       },

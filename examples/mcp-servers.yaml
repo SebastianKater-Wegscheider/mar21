@@ -10,6 +10,17 @@ servers:
     args:
       - -y
       - "@modelcontextprotocol/server-gdrive"
+    capabilities:
+      # If the MCP server uses different tool names, map stable mar21 capability ids -> tool names here.
+      # Example names are placeholders; use `mar21 mcp tools` to see the real names exposed by your server.
+      - capabilityId: gdrive.read.files.search
+        toolName: gdrive.read.files.search
+      - capabilityId: gdrive.read.files.get_metadata
+        toolName: gdrive.read.files.get_metadata
+      - capabilityId: gdrive.read.files.export
+        toolName: gdrive.read.files.export
+      - capabilityId: gdrive.read.files.download
+        toolName: gdrive.read.files.download
     env:
       # Map workspace secrets (loaded from `workspaces/<ws>/secrets/.env`) into whatever the server expects.
       # You may need to adjust these keys to match the server's README.
@@ -26,7 +37,11 @@ servers:
     args:
       - -y
       - "@modelcontextprotocol/server-slack"
+    capabilities:
+      - capabilityId: slack.read.messages.search
+        toolName: slack.read.messages.search
+      - capabilityId: slack.write.message.post
+        toolName: slack.write.message.post
     env:
       # SLACK_BOT_TOKEN: "${MAR21_SLACK_BOT_TOKEN}"
       MAR21_SLACK_BOT_TOKEN: "${MAR21_SLACK_BOT_TOKEN}"
-

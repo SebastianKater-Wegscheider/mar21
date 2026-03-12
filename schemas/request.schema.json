@@ -41,6 +41,27 @@
                       }
                     }
                   }
+                },
+                "mcpLimits": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "maxCalls": { "type": "number", "minimum": 0 }
+                  }
+                },
+                "mcp": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                      "title": { "type": "string" },
+                      "serverId": { "type": "string" },
+                      "capabilityId": { "type": "string" },
+                      "tool": { "type": "string" },
+                      "input": { "type": "object", "additionalProperties": true }
+                    }
+                  }
                 }
               }
             }
@@ -50,4 +71,3 @@
     }
   }
 }
-

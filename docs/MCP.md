@@ -30,10 +30,47 @@ Use these for “bring your own server” debugging:
 - `mar21 mcp tools --workspace <id> --server <serverId>`: list tools (stdio only)
 - `mar21 mcp call --workspace <id> --server <serverId> --tool <toolName> --input <json>`: call tool (stdio only)
 
+## Using MCP inside runs (v0.1: deep research sources)
+`deep_research_sparring` can ingest MCP tool outputs as private evidence when you provide selectors in `--request`:
+
+```yaml
+params:
+  research:
+    sources:
+      mcpLimits:
+        maxCalls: 10
+      mcp:
+        - title: "Slack: competitor mentions"
+          serverId: slack
+          capabilityId: slack.read.messages.search
+          input:
+            query: "competitor name"
+```
+
+Outputs:
+- `outputs/evidence/mcp_sources.json`
+- `outputs/evidence/mcp_*.md` excerpts (redacted)
+- `outputs/research_pack.md` with `[S#]` citations like `mcp:server:slack:tool:<toolName>`
+
+## Capability mapping (recommended)
+To let `mar21` workflows call MCP tools **without hard-coding server-specific tool names**, you can map stable capability ids to tool names in `mcp-servers.yaml`:
+
+```yaml
+servers:
+  - id: slack
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-slack"]
+    capabilities:
+      - capabilityId: slack.write.message.post
+        toolName: post_message
+```
+
+If you later switch MCP servers, you can keep workflows stable by updating only these mappings.
+
 ## Safety boundaries (non-negotiable)
 Even when using MCP:
 - evidence pulls are **metadata-first**
 - raw bytes are **cache-only** by default for private sources
 - prompts/outputs must cite sources (`drive:fileId:<id>`, URLs, etc.)
 - sensitive reads/writes require interactive approvals (supervised-by-default)
-
