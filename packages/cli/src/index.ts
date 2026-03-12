@@ -4,7 +4,7 @@ import process from "node:process";
 import { applyRunChangeset } from "./apply-engine.js";
 import { initWorkspace } from "./init.js";
 import { runCadence } from "./run-cadence.js";
-import { runPlan } from "./run-engine.js";
+import { runAnalyze, runPlan, runReport } from "./run-engine.js";
 import { validateExamples } from "./validate.js";
 
 process.on("uncaughtException", (err) => {
@@ -75,13 +75,13 @@ program
       opts.mode === "advisory" || opts.mode === "supervised" || opts.mode === "autonomous"
         ? opts.mode
         : undefined;
-    const summary = runPlan(workflowId, {
-      workspace: opts.workspace,
-      mode,
-      since: opts.since,
-      dryRun: Boolean(opts.dryRun),
-      json: Boolean(opts.json)
-    });
+      const summary = runPlan(workflowId, {
+        workspace: opts.workspace,
+        mode,
+        since: opts.since,
+        dryRun: Boolean(opts.dryRun),
+        json: Boolean(opts.json)
+      });
 
     if (opts.json) {
       await writeStdoutLine(JSON.stringify(summary));
@@ -89,6 +89,78 @@ program
     }
     console.log(`✓ run created: ${summary.runId}`);
     console.log(`  - ${summary.paths.runDir}`);
+    }
+  );
+
+program
+  .command("analyze")
+  .description("Run an analysis scope (v0.1: artifacts-only)")
+  .argument("<scope>", "Scope (e.g. seo, ads, crm)")
+  .option("--workspace <id>", "Workspace id")
+  .option("--mode <mode>", "advisory|supervised|autonomous")
+  .option("--since <duration>", "ISO 8601 duration, e.g. P7D or P28D")
+  .option("--dry-run", "Never apply writes (still produces ChangeSet)", false)
+  .option("--json", "Print machine-readable run summary", false)
+  .action(
+    async (
+      scope: string,
+      opts: {
+        workspace?: string;
+        mode?: string;
+        since?: string;
+        dryRun?: boolean;
+        json?: boolean;
+      }
+    ) => {
+      const mode =
+        opts.mode === "advisory" || opts.mode === "supervised" || opts.mode === "autonomous"
+          ? opts.mode
+          : undefined;
+      const summary = runAnalyze(scope, {
+        workspace: opts.workspace,
+        mode,
+        since: opts.since,
+        dryRun: Boolean(opts.dryRun),
+        json: Boolean(opts.json)
+      });
+
+      if (opts.json) {
+        await writeStdoutLine(JSON.stringify(summary));
+        return;
+      }
+      console.log(`✓ run created: ${summary.runId}`);
+      console.log(`  - ${summary.paths.runDir}`);
+    }
+  );
+
+program
+  .command("report")
+  .description("Generate a report (v0.1: artifacts-only)")
+  .argument("<cadenceOrWorkflowId>", "Cadence (daily|weekly|monthly) or workflowId")
+  .option("--workspace <id>", "Workspace id")
+  .option("--since <duration>", "ISO 8601 duration, e.g. P7D or P28D")
+  .option("--json", "Print machine-readable run summary", false)
+  .action(
+    async (
+      cadenceOrWorkflowId: string,
+      opts: {
+        workspace?: string;
+        since?: string;
+        json?: boolean;
+      }
+    ) => {
+      const summary = runReport(cadenceOrWorkflowId, {
+        workspace: opts.workspace,
+        since: opts.since,
+        json: Boolean(opts.json)
+      });
+
+      if (opts.json) {
+        await writeStdoutLine(JSON.stringify(summary));
+        return;
+      }
+      console.log(`✓ run created: ${summary.runId}`);
+      console.log(`  - ${summary.paths.runDir}`);
     }
   );
 
