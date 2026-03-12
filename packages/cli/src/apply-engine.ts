@@ -3,8 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import YAML from "yaml";
-import { ensureDir, readYamlFile, writeYamlFile } from "./workspace.js";
+import { ensureDir, readYamlFile, resolveWorkspaceId, writeYamlFile } from "./workspace.js";
 
 type ChangeSetOp = {
   id: string;
@@ -41,7 +40,7 @@ type ApplyResult = {
 };
 
 export type ApplyOptions = {
-  workspace: string;
+  workspace?: string;
   runId: string;
   yes?: boolean;
   json?: boolean;
@@ -296,9 +295,16 @@ function readChangeSet(runDir: string): ChangeSet {
 
 export async function applyRunChangeset(opts: ApplyOptions): Promise<{ summary: ApplySummary; exitCode: number }> {
   const repoRoot = repoRootFromCwd();
-  const wsRoot = path.join(repoRoot, "workspaces", opts.workspace);
+  const workspaceId = resolveWorkspaceId(opts.workspace);
+  if (!workspaceId) {
+    const err = new Error("missing --workspace (or MAR21_WORKSPACE)");
+    (err as Error & { exitCode?: number }).exitCode = 2;
+    throw err;
+  }
+
+  const wsRoot = path.join(repoRoot, "workspaces", workspaceId);
   if (!fs.existsSync(wsRoot)) {
-    const err = new Error(`workspace not found: ${opts.workspace}`);
+    const err = new Error(`workspace not found: ${workspaceId}`);
     (err as Error & { exitCode?: number }).exitCode = 10;
     throw err;
   }
@@ -358,7 +364,6 @@ export async function applyRunChangeset(opts: ApplyOptions): Promise<{ summary: 
   appendLogLine(runDir, { event: "apply.finished", runId: opts.runId });
 
   const hadFailures = results.some((r) => r.status === "failed");
-  const summary: ApplySummary = { runId: opts.runId, workspace: opts.workspace, results };
+  const summary: ApplySummary = { runId: opts.runId, workspace: workspaceId, results };
   return { summary, exitCode: hadFailures ? 30 : 0 };
 }
-

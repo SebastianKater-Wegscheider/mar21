@@ -3,6 +3,7 @@ import { Command } from "commander";
 import process from "node:process";
 import { applyRunChangeset } from "./apply-engine.js";
 import { initWorkspace } from "./init.js";
+import { runCadence } from "./run-cadence.js";
 import { runPlan } from "./run-engine.js";
 import { validateExamples } from "./validate.js";
 
@@ -45,7 +46,7 @@ program
   .command("plan")
   .description("Run a workflow in planning mode (v0.1: artifacts-only)")
   .argument("<workflowId>", "Workflow id")
-  .requiredOption("--workspace <id>", "Workspace id")
+  .option("--workspace <id>", "Workspace id")
   .option("--mode <mode>", "advisory|supervised|autonomous")
   .option("--since <duration>", "ISO 8601 duration, e.g. P7D or P28D")
   .option("--dry-run", "Never apply writes (still produces ChangeSet)", false)
@@ -54,7 +55,7 @@ program
     (
       workflowId: string,
       opts: {
-        workspace: string;
+        workspace?: string;
         mode?: string;
         since?: string;
         dryRun?: boolean;
@@ -83,17 +84,69 @@ program
   );
 
 program
+  .command("run")
+  .description("Execute a cadence profile once (v0.1: artifacts-only)")
+  .argument("<cadence>", "daily|weekly|monthly")
+  .option("--workspace <id>", "Workspace id")
+  .option("--profile <profileId>", "Profile id (default: cadence)")
+  .option("--mode <mode>", "advisory|supervised|autonomous")
+  .option("--since <duration>", "ISO 8601 duration, e.g. P7D or P28D")
+  .option("--dry-run", "Never apply writes (still produces ChangeSet)", false)
+  .option("--json", "Print machine-readable run summary", false)
+  .action(
+    (
+      cadence: string,
+      opts: {
+        workspace?: string;
+        profile?: string;
+        mode?: string;
+        since?: string;
+        dryRun?: boolean;
+        json?: boolean;
+      }
+    ) => {
+      const c = cadence.trim();
+      if (c !== "daily" && c !== "weekly" && c !== "monthly") {
+        const err = new Error(`invalid cadence: ${cadence} (expected daily|weekly|monthly)`);
+        (err as Error & { exitCode?: number }).exitCode = 2;
+        throw err;
+      }
+
+      const mode =
+        opts.mode === "advisory" || opts.mode === "supervised" || opts.mode === "autonomous"
+          ? opts.mode
+          : undefined;
+      const summary = runCadence({
+        cadence: c,
+        workspace: opts.workspace,
+        profile: opts.profile,
+        mode,
+        since: opts.since,
+        dryRun: Boolean(opts.dryRun)
+      });
+
+      if (opts.json) {
+        process.stdout.write(`${JSON.stringify(summary)}\n`);
+        return;
+      }
+
+      console.log(`✓ cadence run: ${summary.cadence} (${summary.profileId})`);
+      for (const r of summary.runs) console.log(`  - ${r.runId}`);
+    }
+  );
+
+program
   .command("apply")
   .description("Apply a run changeset (v0.1: internal ops only)")
   .argument("<runId>", "Run id")
-  .requiredOption("--workspace <id>", "Workspace id")
+  .option("--workspace <id>", "Workspace id")
   .option("--yes", "Auto-approve all required approvals", false)
   .option("--json", "Print machine-readable apply summary", false)
   .action(
     async (
       runId: string,
       opts: {
-        workspace: string;
+        workspace?: string;
         yes?: boolean;
         json?: boolean;
       }
