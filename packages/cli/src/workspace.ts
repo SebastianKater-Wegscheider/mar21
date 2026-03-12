@@ -44,7 +44,15 @@ export function requireWorkspaceRoot(repoRoot: string, workspaceId: string): str
 }
 
 export function readYamlFile(filePath: string): unknown {
-  return YAML.parse(fs.readFileSync(filePath, "utf-8"));
+  const raw = fs.readFileSync(filePath, "utf-8");
+  try {
+    return YAML.parse(raw);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const err = new Error(`invalid YAML: ${filePath}: ${msg}`) as Error & { exitCode?: number };
+    err.exitCode = 11;
+    throw err;
+  }
 }
 
 export function writeYamlFile(filePath: string, data: unknown): void {
