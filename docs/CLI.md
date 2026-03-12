@@ -126,3 +126,13 @@ When `--json` is set, stdout must include a single JSON object:
   }
 }
 ```
+
+## Autopilot (v0.1 behavior)
+In v0.1, `mar21 autopilot start` is a **foreground-only loop runner**:
+- It loads `workspaces/<ws>/profiles/<profileId>.yaml` and executes all steps immediately (one run per step).
+- It then sleeps and repeats. The sleep interval is a heuristic derived from `profileId`:
+  - `daily` → 24h
+  - `weekly` → 7d
+  - `monthly` → 30d
+  - otherwise → 24h
+- Background/daemon mode is not implemented in v0.1.

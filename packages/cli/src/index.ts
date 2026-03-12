@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import process from "node:process";
 import { applyRunChangeset } from "./apply-engine.js";
+import { autopilotStart } from "./autopilot.js";
 import { initWorkspace } from "./init.js";
 import { runCadence } from "./run-cadence.js";
 import { runAnalyze, runPlan, runReport } from "./run-engine.js";
@@ -213,6 +214,31 @@ program
 
       console.log(`✓ cadence run: ${summary.cadence} (${summary.profileId})`);
       for (const r of summary.runs) console.log(`  - ${r.runId}`);
+    }
+  );
+
+program
+  .command("autopilot")
+  .description("Run a scheduled loop (v0.1: foreground only)")
+  .command("start")
+  .requiredOption("--profile <profileId>", "Profile id (workspaces/<ws>/profiles/<id>.yaml)")
+  .option("--workspace <id>", "Workspace id")
+  .option("--mode <mode>", "advisory|supervised|autonomous")
+  .option("--dry-run", "Never apply writes (still produces ChangeSet)", false)
+  .option("--foreground", "Run in foreground (required in v0.1)", false)
+  .action(
+    async (opts: { profile: string; workspace?: string; mode?: string; dryRun?: boolean; foreground?: boolean }) => {
+      const mode =
+        opts.mode === "advisory" || opts.mode === "supervised" || opts.mode === "autonomous"
+          ? opts.mode
+          : undefined;
+      await autopilotStart({
+        workspace: opts.workspace,
+        profileId: opts.profile,
+        mode,
+        dryRun: Boolean(opts.dryRun),
+        foreground: Boolean(opts.foreground)
+      });
     }
   );
 
