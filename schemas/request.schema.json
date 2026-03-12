@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mar21:schema:request:v1",
+  "title": "mar21 Run Request (v1)",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["apiVersion", "workflowId", "workspace", "mode"],
+  "properties": {
+    "apiVersion": { "const": "mar21/request-v1" },
+    "workflowId": { "type": "string", "minLength": 1 },
+    "workspace": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,31}$" },
+    "mode": { "enum": ["advisory", "supervised", "autonomous"] },
+    "since": { "type": "string", "pattern": "^P" },
+    "params": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "research": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "questions": { "type": "array", "items": { "type": "string" } },
+            "competitorUrls": { "type": "array", "items": { "type": "string" } },
+            "sources": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "drive": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "fileIds": { "type": "array", "items": { "type": "string" } },
+                    "folderIds": { "type": "array", "items": { "type": "string" } },
+                    "query": { "type": ["string", "null"] },
+                    "limits": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "properties": {
+                        "maxDownloads": { "type": "number", "minimum": 0 },
+                        "maxFileSizeMB": { "type": "number", "minimum": 0 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

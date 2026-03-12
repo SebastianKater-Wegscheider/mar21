@@ -1,0 +1,17 @@
+apiVersion: mar21/repurpose-map-v1
+runId: 2026-03-12T090000Z_distribution_weekly
+workspace: acme
+
+maps:
+  - sourceAssetId: wp_post_category-entry-point_2026-03_v1
+    derived:
+      - assetId: meta_static_auditability_2026-03_v1
+        channel: meta_ads
+        format: static
+      - assetId: email_subject_activation_fix_2026-03_v1
+        channel: email
+        format: subject_line
+      - assetId: slack_announcement_entry_point_2026-03_v1
+        channel: slack
+        format: message
+

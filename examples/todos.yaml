@@ -1,0 +1,19 @@
+apiVersion: mar21/todos-v1
+workspace: acme
+
+tasks:
+  - taskId: "T-20260312-001"
+    title: "Pitch 5 category reporters (auditability angle)"
+    description: "Use research pack findings [S1]/[S2]. Draft email. Track replies."
+    status: open
+    owner: operator
+    dueDate: "2026-03-15"
+    priority: p1
+    tags: ["pr", "distribution"]
+    createdAt: "2026-03-12T09:10:00Z"
+    createdBy:
+      runId: "2026-03-12T090000Z_distribution_weekly"
+      opId: "todo_pr_pitch_01"
+    evidenceRef:
+      - "outputs/research_pack.md"
+

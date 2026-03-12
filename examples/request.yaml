@@ -1,0 +1,20 @@
+apiVersion: mar21/request-v1
+workflowId: deep_research_sparring
+workspace: acme
+mode: supervised
+since: P90D
+params:
+  research:
+    questions:
+      - "Which positioning claims are crowded vs underclaimed in DACH?"
+      - "What would have to be true for our pipeline goal to be realistic?"
+    competitorUrls:
+      - "https://example-competitor.com"
+    sources:
+      drive:
+        fileIds: ["abc123", "pdf987"]
+        limits:
+          maxDownloads: 10
+          maxFileSizeMB: 25
+  slackChannel: "#growth"
+

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mar21:schema:distribution-plan:v1",
+  "title": "mar21 Distribution Plan (v1)",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["apiVersion", "runId", "workspace", "goal", "channels", "tracking"],
+  "properties": {
+    "apiVersion": { "const": "mar21/distribution-plan-v1" },
+    "runId": { "type": "string", "minLength": 10 },
+    "workspace": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,31}$" },
+    "since": { "type": "string" },
+    "goal": { "type": "object", "additionalProperties": true },
+    "sourceAssets": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "channels": { "type": "object", "additionalProperties": true },
+    "repurposingPolicy": { "type": "object", "additionalProperties": true },
+    "tracking": { "type": "object", "additionalProperties": true }
+  }
+}
+

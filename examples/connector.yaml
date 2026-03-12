@@ -1,0 +1,21 @@
+apiVersion: mar21/connector-v1
+toolId: gdrive
+displayName: "Google Drive"
+auth:
+  type: oauth
+  scopes:
+    - "https://www.googleapis.com/auth/drive.metadata.readonly"
+    - "https://www.googleapis.com/auth/drive.readonly"
+capabilities:
+  - id: gdrive.read.files.search
+    risk: low
+    writes: false
+    dryRun: true
+  - id: gdrive.read.files.export
+    risk: medium
+    writes: false
+    dryRun: true
+rateLimits:
+  strategy: token_bucket
+  requestsPerMinute: 60
+

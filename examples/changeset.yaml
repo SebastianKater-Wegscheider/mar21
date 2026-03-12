@@ -1,0 +1,30 @@
+apiVersion: mar21/changeset-v1
+runId: 2026-03-11T101530Z_weekly_review
+workspace: acme
+mode: supervised
+
+ops:
+  - id: slack_post_digest
+    tool: slack
+    operation: slack.write.message.post
+    risk: low
+    requiresApproval: false
+    params:
+      channel: "#growth"
+      messageRef: "outputs/report.md"
+
+  - id: meta_pause_adset_123
+    tool: meta_ads
+    operation: meta_ads.write.adset.pause
+    risk: medium
+    requiresApproval: true
+    idempotencyKey: "meta_ads:pause_adset:123"
+    params:
+      adsetId: "123"
+      reason: "CPA +22% P7D; fatigue signal."
+    expectedImpact:
+      spendDeltaPct: -5
+    evidenceRef:
+      - "outputs/evidence/meta_adset_123_p7d.json"
+    rollbackHint: "Unpause if CPA normalizes after creative refresh."
+

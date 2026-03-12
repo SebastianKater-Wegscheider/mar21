@@ -1,0 +1,10 @@
+apiVersion: mar21/profile-v1
+id: weekly
+steps:
+  - workflowId: weekly_review
+    mode: supervised
+    since: P7D
+  - workflowId: deep_research_sparring
+    mode: supervised
+    since: P90D
+

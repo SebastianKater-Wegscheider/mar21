@@ -1,0 +1,13 @@
+[
+  {
+    "id": "E1",
+    "sourceRef": "drive:fileId:pdf987",
+    "derivedFrom": "private_doc",
+    "path": "outputs/evidence/gdrive_pdf987.md",
+    "contentType": "text/markdown",
+    "redacted": true,
+    "sha256": "00000000000000000000000000000000",
+    "notes": "Extracted only the section about ICP objections; names removed."
+  }
+]
+

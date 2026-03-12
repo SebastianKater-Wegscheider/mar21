@@ -1,0 +1,13 @@
+{
+  "apiVersion": "mar21/run-v1",
+  "runId": "2026-03-11T101530Z_weekly_review",
+  "workspace": "acme",
+  "workflowId": "weekly_review",
+  "mode": "supervised",
+  "since": "P7D",
+  "startedAt": "2026-03-11T10:15:30Z",
+  "finishedAt": "2026-03-11T10:17:12Z",
+  "connectorsUsed": ["ga4", "gsc", "meta_ads", "shopify", "hubspot", "klaviyo", "slack", "gdrive"],
+  "writesAttempted": false
+}
+

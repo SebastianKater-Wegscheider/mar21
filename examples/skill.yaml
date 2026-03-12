@@ -1,0 +1,41 @@
+apiVersion: mar21/skill-v1
+id: strategy.deep_research_pack
+domain: strategy
+description: "Create a research pack with attributable findings and sources."
+
+inputs:
+  schema:
+    type: object
+    required: [since]
+    properties:
+      since: { type: string, description: "ISO 8601 duration, e.g. P90D" }
+
+outputs:
+  schema:
+    type: object
+    required: [sources, findings]
+    properties:
+      sources:
+        type: array
+        items: { type: string }
+      findings:
+        type: array
+        items: { type: string }
+
+usesConnectors:
+  - gdrive.read.files.search
+  - gdrive.read.files.export
+  - ga4.read.report.run
+  - gsc.read.search_analytics.query
+
+risk:
+  level: low
+  writes: false
+
+artifacts:
+  produces:
+    - outputs/research_pack.md
+
+idempotency:
+  strategy: snapshot_based
+

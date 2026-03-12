@@ -1,0 +1,38 @@
+apiVersion: mar21/creative-brief-v1
+runId: 2026-03-12T090000Z_meta_cleanup
+workspace: acme
+
+goal:
+  kpiNode: conversions
+  successMetric: cpa
+  target: "CPA <= 45 EUR (P7D)"
+
+audience:
+  segmentRef: "icp.segments[0]"
+  pains: ["manual reporting", "tool sprawl"]
+  objections: ["too complex", "no time"]
+
+offer:
+  promise: "Weekly review that ships actions, not dashboards."
+  proof: ["case study", "demo video"]
+  cta: "Book a 15‑min audit"
+
+message:
+  angle: "auditable growth loops"
+  supportPoints:
+    - "Plan/Report/ChangeSet every week"
+    - "Supervised-by-default"
+  doNotSay: ["guaranteed outcomes"]
+
+constraints:
+  brandAssetsRequired: true
+  eeatRequired: true
+  plainLanguageRequired: true
+
+tracking:
+  utm:
+    required: true
+    utm_source: "meta"
+    utm_medium: "paid_social"
+    utm_campaign: "prospecting_auditability"
+
