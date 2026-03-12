@@ -18,6 +18,15 @@ process.on("uncaughtException", (err) => {
 
 const program = new Command();
 
+async function writeStdoutLine(line: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    process.stdout.write(line.endsWith("\n") ? line : `${line}\n`, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
 program
   .name("mar21")
   .description("AI-native Marketing Operating System (boilerplate)")
@@ -52,7 +61,7 @@ program
   .option("--dry-run", "Never apply writes (still produces ChangeSet)", false)
   .option("--json", "Print machine-readable run summary", false)
   .action(
-    (
+    async (
       workflowId: string,
       opts: {
         workspace?: string;
@@ -75,7 +84,7 @@ program
     });
 
     if (opts.json) {
-      process.stdout.write(`${JSON.stringify(summary)}\n`);
+      await writeStdoutLine(JSON.stringify(summary));
       return;
     }
     console.log(`✓ run created: ${summary.runId}`);
@@ -94,7 +103,7 @@ program
   .option("--dry-run", "Never apply writes (still produces ChangeSet)", false)
   .option("--json", "Print machine-readable run summary", false)
   .action(
-    (
+    async (
       cadence: string,
       opts: {
         workspace?: string;
@@ -126,7 +135,7 @@ program
       });
 
       if (opts.json) {
-        process.stdout.write(`${JSON.stringify(summary)}\n`);
+        await writeStdoutLine(JSON.stringify(summary));
         return;
       }
 
@@ -159,8 +168,9 @@ program
       });
 
       if (opts.json) {
-        process.stdout.write(`${JSON.stringify(summary)}\n`);
-        process.exit(exitCode);
+        await writeStdoutLine(JSON.stringify(summary));
+        process.exitCode = exitCode;
+        return;
       }
 
       const failed = summary.results.filter((r) => r.status === "failed");
@@ -170,8 +180,8 @@ program
       if (failed.length) console.log(`  - failed ops: ${failed.length}`);
       if (skipped.length) console.log(`  - skipped ops: ${skipped.length}`);
       if (rejected.length) console.log(`  - rejected ops: ${rejected.length}`);
-      process.exit(exitCode);
+      process.exitCode = exitCode;
     }
   );
 
-program.parse(process.argv);
+await program.parseAsync(process.argv);
