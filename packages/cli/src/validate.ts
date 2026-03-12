@@ -35,7 +35,14 @@ function loadJsonFile(filePath: string): unknown {
 
 function loadYamlFile(filePath: string): unknown {
   const raw = fs.readFileSync(filePath, "utf-8");
-  return YAML.parse(raw);
+  try {
+    return YAML.parse(raw);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const err = new Error(`invalid YAML: ${filePath}: ${msg}`) as Error & { exitCode?: number };
+    err.exitCode = 11;
+    throw err;
+  }
 }
 
 function buildAjv(schemaDir: string): Ajv2020Instance {
