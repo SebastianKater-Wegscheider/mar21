@@ -4,7 +4,6 @@ import type { ErrorObject } from "ajv";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
 type ValidateResult = { ok: true } | { ok: false; errors: string[] };
@@ -16,8 +15,18 @@ const Ajv2020 = Ajv2020Import as unknown as Ajv2020Class;
 const addFormats = ((addFormatsImport as unknown as { default?: unknown }).default ??
   addFormatsImport) as unknown as (ajv: Ajv2020Instance) => void;
 
-function repoRootFromCliDir(cliDir: string): string {
-  return path.resolve(cliDir, "../../..");
+function findRepoRootFromCwd(): string | null {
+  let dir = process.cwd();
+  for (let i = 0; i < 25; i += 1) {
+    const schemaDir = path.join(dir, "schemas");
+    const examplesDir = path.join(dir, "examples");
+    if (fs.existsSync(schemaDir) && fs.existsSync(examplesDir)) return dir;
+
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
 }
 
 function loadJsonFile(filePath: string): unknown {
@@ -86,8 +95,11 @@ function validateOne(ajv: Ajv2020Instance, schemaId: string, filePath: string): 
 }
 
 export function validateExamples(): number {
-  const cliDir = path.dirname(fileURLToPath(import.meta.url));
-  const repoRoot = repoRootFromCliDir(cliDir);
+  const repoRoot = findRepoRootFromCwd();
+  if (!repoRoot) {
+    console.error("could not find repo root (expected ./schemas and ./examples in cwd or parents)");
+    return 11;
+  }
   const schemaDir = path.join(repoRoot, "schemas");
   const examplesDir = path.join(repoRoot, "examples");
 
