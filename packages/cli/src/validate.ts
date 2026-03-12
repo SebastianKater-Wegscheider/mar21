@@ -76,7 +76,8 @@ function schemaForExampleFilename(filename: string): string | null {
     "creative-brief.yaml": "urn:mar21:schema:creative-brief:v1",
     "asset-manifest.yaml": "urn:mar21:schema:asset-manifest:v1",
     "distribution-plan.yaml": "urn:mar21:schema:distribution-plan:v1",
-    "repurpose-map.yaml": "urn:mar21:schema:repurpose-map:v1"
+    "repurpose-map.yaml": "urn:mar21:schema:repurpose-map:v1",
+    "mcp-servers.yaml": "urn:mar21:schema:mcp-servers:v1"
   };
   return map[filename] ?? null;
 }
