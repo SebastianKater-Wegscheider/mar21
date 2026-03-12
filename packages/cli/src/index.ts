@@ -150,6 +150,7 @@ program
   .argument("<runId>", "Run id")
   .option("--workspace <id>", "Workspace id")
   .option("--yes", "Auto-approve all required approvals", false)
+  .option("--fail-on-reject", "Exit non-zero if any op is rejected", false)
   .option("--json", "Print machine-readable apply summary", false)
   .action(
     async (
@@ -157,6 +158,7 @@ program
       opts: {
         workspace?: string;
         yes?: boolean;
+        failOnReject?: boolean;
         json?: boolean;
       }
     ) => {
@@ -164,7 +166,8 @@ program
         workspace: opts.workspace,
         runId,
         yes: Boolean(opts.yes),
-        json: Boolean(opts.json)
+        json: Boolean(opts.json),
+        failOnReject: Boolean(opts.failOnReject)
       });
 
       if (opts.json) {

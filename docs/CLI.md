@@ -15,7 +15,7 @@ mar21 report <cadence|workflowId> --workspace <id> [--since <duration>] [--json]
 mar21 run daily|weekly|monthly --workspace <id> [--profile <profileId>] [--mode <mode>] [--dry-run] [--json]
 mar21 autopilot start --workspace <id> --profile <profileId> [--mode <mode>] [--dry-run] [--foreground]
 
-mar21 apply <runId> --workspace <id> [--yes] [--json]
+mar21 apply <runId> --workspace <id> [--yes] [--fail-on-reject] [--json]
 ```
 
 ### Optional task convenience commands (v1)
@@ -89,7 +89,9 @@ Prompt:
 If rejected, the CLI must:
 - record a rejection entry in `approvals.json`
 - skip the op
-- continue to the next op (unless `--fail-on-reject` is introduced later; not in v1)
+- continue to the next op
+
+If `--fail-on-reject` is set, the CLI must exit non-zero if any op is rejected.
 
 ### Sensitive reads exceeding caps (Drive exports/downloads)
 If a run would exceed caps (e.g. `maxDownloads`, `maxFileSizeMB`):

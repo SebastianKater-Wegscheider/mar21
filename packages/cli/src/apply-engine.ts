@@ -44,6 +44,7 @@ export type ApplyOptions = {
   runId: string;
   yes?: boolean;
   json?: boolean;
+  failOnReject?: boolean;
 };
 
 export type ApplySummary = {
@@ -456,6 +457,9 @@ export async function applyRunChangeset(opts: ApplyOptions): Promise<{ summary: 
   appendLogLine(runDir, { event: "apply.finished", runId: opts.runId });
 
   const hadFailures = results.some((r) => r.status === "failed");
+  const hadRejections = results.some((r) => r.status === "rejected");
   const summary: ApplySummary = { runId: opts.runId, workspace: workspaceId, results };
-  return { summary, exitCode: hadFailures ? 30 : 0 };
+  if (hadFailures) return { summary, exitCode: 30 };
+  if (opts.failOnReject && hadRejections) return { summary, exitCode: 30 };
+  return { summary, exitCode: 0 };
 }
