@@ -17,6 +17,15 @@ process.on("uncaughtException", (err) => {
   throw err;
 });
 
+process.on("unhandledRejection", (err) => {
+  const exitCode = (err as Error & { exitCode?: number }).exitCode;
+  if (exitCode) {
+    console.error((err as Error).message);
+    process.exit(exitCode);
+  }
+  throw err;
+});
+
 const program = new Command();
 
 async function writeStdoutLine(line: string): Promise<void> {
@@ -74,6 +83,7 @@ program
   .option("--workspace <id>", "Workspace id")
   .option("--mode <mode>", "advisory|supervised|autonomous")
   .option("--since <duration>", "ISO 8601 duration, e.g. P7D or P28D")
+  .option("--request <path>", "YAML request patch file (merged into params.*)", undefined)
   .option("--dry-run", "Never apply writes (still produces ChangeSet)", false)
   .option("--json", "Print machine-readable run summary", false)
   .action(
@@ -83,6 +93,7 @@ program
         workspace?: string;
         mode?: string;
         since?: string;
+        request?: string;
         dryRun?: boolean;
         json?: boolean;
       }
@@ -91,10 +102,11 @@ program
       opts.mode === "advisory" || opts.mode === "supervised" || opts.mode === "autonomous"
         ? opts.mode
         : undefined;
-    const summary = await runPlan(workflowId, {
+      const summary = await runPlan(workflowId, {
         workspace: opts.workspace,
         mode,
         since: opts.since,
+        requestPath: opts.request,
         dryRun: Boolean(opts.dryRun),
         json: Boolean(opts.json)
       });

@@ -8,7 +8,7 @@ This document defines the **exact** CLI surface and UX expectations. Implementer
 ```
 mar21 init --workspace <id> [--stack <preset>] [--connectors <list>] [--force]
 
-mar21 plan <workflowId> --workspace <id> [--mode <mode>] [--since <duration>] [--dry-run] [--json]
+mar21 plan <workflowId> --workspace <id> [--request <path>] [--mode <mode>] [--since <duration>] [--dry-run] [--json]
 mar21 analyze <scope> --workspace <id> [--mode <mode>] [--since <duration>] [--dry-run] [--json]
 mar21 report <cadence|workflowId> --workspace <id> [--since <duration>] [--json]
 
@@ -48,6 +48,7 @@ mar21 crm plan <workflowId> ...
   - any profile step mode (unless a step explicitly pins a higher-safety mode).
 - `--dry-run` forces: never apply tool writes (ChangeSet still produced).
 - `--since <duration>` uses ISO 8601 duration strings (e.g. `P7D`, `P28D`, `P90D`).
+- `--request <path>` (plan only, v0.1.1+) merges a YAML patch into `request.params.*` for the run.
 - `--json` prints a machine-readable run summary to stdout.
 
 ## Run id format
