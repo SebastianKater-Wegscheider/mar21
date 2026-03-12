@@ -8,6 +8,13 @@ Connectors are the **API boundary** between `mar21` and external marketing tools
 
 This document defines **v1 tool scope** and **capability boundaries**.
 
+## MCP-first (default)
+`mar21` is **MCP-first**:
+- Prefer using MCP servers for integrations (pluggable, discoverable tools).
+- Keep `mar21` focused on the stable surface: artifacts, approvals, caps, evidence indexing, and run auditability.
+
+See `docs/MCP.md`.
+
 v1 first-class tools:
 - SEO: Google Search Console (`gsc`)
 - Analytics: GA4 (`ga4`)

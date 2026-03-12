@@ -1,0 +1,32 @@
+apiVersion: mar21/mcp-servers-v1
+servers:
+  # MCP-first means operators can add servers on the fly.
+  # `mar21` treats these as *pluggable* and will discover tools at runtime.
+  #
+  # Note: In v0.1, `mar21 mcp *` supports `transport: stdio` only.
+  - id: gdrive
+    transport: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-gdrive"
+    env:
+      # Map workspace secrets (loaded from `workspaces/<ws>/secrets/.env`) into whatever the server expects.
+      # You may need to adjust these keys to match the server's README.
+      # GOOGLE_CLIENT_ID: "${MAR21_GDRIVE_CLIENT_ID}"
+      # GOOGLE_CLIENT_SECRET: "${MAR21_GDRIVE_CLIENT_SECRET}"
+      # GOOGLE_REFRESH_TOKEN: "${MAR21_GDRIVE_REFRESH_TOKEN}"
+      MAR21_GDRIVE_CLIENT_ID: "${MAR21_GDRIVE_CLIENT_ID}"
+      MAR21_GDRIVE_CLIENT_SECRET: "${MAR21_GDRIVE_CLIENT_SECRET}"
+      MAR21_GDRIVE_REFRESH_TOKEN: "${MAR21_GDRIVE_REFRESH_TOKEN}"
+
+  - id: slack
+    transport: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-slack"
+    env:
+      # SLACK_BOT_TOKEN: "${MAR21_SLACK_BOT_TOKEN}"
+      MAR21_SLACK_BOT_TOKEN: "${MAR21_SLACK_BOT_TOKEN}"
+
