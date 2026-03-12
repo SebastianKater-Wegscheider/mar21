@@ -43,6 +43,12 @@ export type RunContext = {
   writeYaml: (relativePath: string, data: unknown) => void;
   exists: (relativePath: string) => boolean;
   log: (event: Record<string, unknown>) => void;
+  confirmSensitiveRead: (args: {
+    kind: "gdrive_download" | "gdrive_export";
+    count: number;
+    approxMB: number;
+    reason: string;
+  }) => Promise<boolean>;
 };
 
 export type SkillExecutionResult = {
@@ -51,4 +57,3 @@ export type SkillExecutionResult = {
   artifacts: string[];
   ops: Array<Record<string, unknown>>;
 };
-
