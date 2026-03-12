@@ -6,7 +6,7 @@ This document defines the **exact** CLI surface and UX expectations. Implementer
 
 ### Core verbs
 ```
-mar21 init --workspace <id> [--force]
+mar21 init --workspace <id> [--stack <preset>] [--connectors <list>] [--force]
 
 mar21 plan <workflowId> --workspace <id> [--mode <mode>] [--since <duration>] [--dry-run] [--json]
 mar21 analyze <scope> --workspace <id> [--mode <mode>] [--since <duration>] [--dry-run] [--json]
@@ -39,6 +39,10 @@ mar21 crm plan <workflowId> ...
 ## Global flags and precedence
 - `--workspace <id>` selects `workspaces/<id>/`.
 - `MAR21_WORKSPACE` is used only if `--workspace` is absent.
+- `mar21 init` stack selection:
+  - `--connectors <list>` (comma-separated ids) wins over `--stack`.
+  - `--stack <preset>` defaults to `default`.
+  - Supported presets in v0.1: `default`, `content_engine`, `paid_growth`, `lifecycle`.
 - `--mode advisory|supervised|autonomous` overrides:
   - `constraints.autonomy.defaultMode` in the context, and
   - any profile step mode (unless a step explicitly pins a higher-safety mode).
