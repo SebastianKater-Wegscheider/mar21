@@ -44,7 +44,7 @@ export type RunContext = {
   exists: (relativePath: string) => boolean;
   log: (event: Record<string, unknown>) => void;
   confirmSensitiveRead: (args: {
-    kind: "gdrive_download" | "gdrive_export";
+    kind: "gdrive_download" | "gdrive_export" | "mcp_call";
     count: number;
     approxMB: number;
     reason: string;

@@ -1,9 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import process from "node:process";
 import readline from "node:readline/promises";
 import YAML from "yaml";
 import { executeSkillPipeline, type SkillExecutionResult, type SkillStep } from "@mar21/core";
+import {
+  callMcpToolIsolated,
+  loadMcpServersFile,
+  loadWorkspaceSecretsIntoEnv,
+  resolveToolForCapability
+} from "@mar21/mcp";
 import {
   defaultModeFromContext,
   ensureDir,
@@ -108,6 +115,68 @@ function reportTemplate(workflowId: string): string {
 ## Next checkpoint
 - …
 `;
+}
+
+function sha256Hex(text: string): string {
+  return createHash("sha256").update(text, "utf-8").digest("hex");
+}
+
+function redactBasic(text: string): { redacted: string; stats: { emails: number; phones: number; longIds: number } } {
+  let out = text;
+  let emails = 0;
+  let phones = 0;
+  let longIds = 0;
+
+  out = out.replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/gi, () => {
+    emails += 1;
+    return "[REDACTED_EMAIL]";
+  });
+
+  out = out.replace(/(\\+?\\d[\\d\\s().-]{7,}\\d)/g, () => {
+    phones += 1;
+    return "[REDACTED_PHONE]";
+  });
+
+  out = out.replace(/(?=[A-Za-z0-9_-]{24,})(?=.*\\d)[A-Za-z0-9_-]+/g, (m) => {
+    longIds += 1;
+    return `[REDACTED_ID:${Math.min(8, m.length)}]`;
+  });
+
+  return { redacted: out, stats: { emails, phones, longIds } };
+}
+
+function safeFileSlug(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 64);
+}
+
+function nextEvidenceNumber(existing: unknown): number {
+  const arr = Array.isArray(existing) ? existing : [];
+  let max = 0;
+  for (const e of arr as any[]) {
+    const id = typeof e?.id === "string" ? e.id : "";
+    const m = /^E(\\d+)$/.exec(id);
+    if (!m) continue;
+    const n = Number(m[1]);
+    if (Number.isFinite(n)) max = Math.max(max, n);
+  }
+  return max + 1;
+}
+
+function nextSourceNumber(existingSources: Array<{ sourceId?: string }> | null): number {
+  let max = 1; // reserve S1 for public placeholder
+  for (const s of existingSources ?? []) {
+    const sid = typeof s?.sourceId === "string" ? s.sourceId : "";
+    const m = /^S(\\d+)$/.exec(sid);
+    if (!m) continue;
+    const n = Number(m[1]);
+    if (Number.isFinite(n)) max = Math.max(max, n);
+  }
+  return max + 1;
 }
 
 function deepResearchPackTemplate(args: {
@@ -322,6 +391,9 @@ function runPlanSyncDeprecated(workflowIdRaw: string, opts: PlanCommandOptions):
     throw err;
   }
 
+  // Load workspace secrets (if present) for downstream connectors/MCP servers.
+  loadWorkspaceSecretsIntoEnv(wsRoot);
+
   const contextPath = path.join(wsRoot, "marketing-context.yaml");
   if (!fs.existsSync(contextPath)) {
     const err = new Error(`missing marketing context: ${contextPath}`);
@@ -398,7 +470,7 @@ function runPlanSyncDeprecated(workflowIdRaw: string, opts: PlanCommandOptions):
     exists: (relativePath: string) => fs.existsSync(safeJoin(runDir, relativePath)),
     log: (event: Record<string, unknown>) => fs.appendFileSync(logsPath, logsLine(event), "utf-8"),
     confirmSensitiveRead: async (args: {
-      kind: "gdrive_download" | "gdrive_export";
+      kind: "gdrive_download" | "gdrive_export" | "mcp_call";
       count: number;
       approxMB: number;
       reason: string;
@@ -428,12 +500,14 @@ function runPlanSyncDeprecated(workflowIdRaw: string, opts: PlanCommandOptions):
         return false;
       }
 
-      const ok = await promptYesNo(
-        `This run will ${args.kind === "gdrive_export" ? "export" : "download"} ${args.count} Drive file(s) (~${args.approxMB.toFixed(
-          1
-        )} MB). Continue? (y/n) `,
-        promptTo
-      );
+      const verb =
+        args.kind === "gdrive_export"
+          ? `export ${args.count} Drive file(s)`
+          : args.kind === "gdrive_download"
+            ? `download ${args.count} Drive file(s)`
+            : `call ${args.count} MCP tool(s)`;
+      const sizeNote = args.approxMB > 0 ? ` (~${args.approxMB.toFixed(1)} MB)` : "";
+      const ok = await promptYesNo(`This run will ${verb}${sizeNote}. Continue? (y/n) `, promptTo);
       fs.appendFileSync(
         logsPath,
         logsLine({ event: "sensitive_read.decision", kind: args.kind, decision: ok ? "approved" : "rejected" }),
@@ -672,7 +746,7 @@ export async function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): 
     exists: (relativePath: string) => fs.existsSync(safeJoin(runDir, relativePath)),
     log: (event: Record<string, unknown>) => fs.appendFileSync(logsPath, logsLine(event), "utf-8"),
     confirmSensitiveRead: async (args: {
-      kind: "gdrive_download" | "gdrive_export";
+      kind: "gdrive_download" | "gdrive_export" | "mcp_call";
       count: number;
       approxMB: number;
       reason: string;
@@ -702,12 +776,14 @@ export async function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): 
         return false;
       }
 
-      const ok = await promptYesNo(
-        `This run will ${args.kind === "gdrive_export" ? "export" : "download"} ${args.count} Drive file(s) (~${args.approxMB.toFixed(
-          1
-        )} MB). Continue? (y/n) `,
-        promptTo
-      );
+      const verb =
+        args.kind === "gdrive_export"
+          ? `export ${args.count} Drive file(s)`
+          : args.kind === "gdrive_download"
+            ? `download ${args.count} Drive file(s)`
+            : `call ${args.count} MCP tool(s)`;
+      const sizeNote = args.approxMB > 0 ? ` (~${args.approxMB.toFixed(1)} MB)` : "";
+      const ok = await promptYesNo(`This run will ${verb}${sizeNote}. Continue? (y/n) `, promptTo);
       fs.appendFileSync(
         logsPath,
         logsLine({ event: "sensitive_read.decision", kind: args.kind, decision: ok ? "approved" : "rejected" }),
@@ -813,29 +889,229 @@ export async function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): 
       };
     })();
 
+    const mcpCalls = (() => {
+      const p = (request.params ?? {}) as any;
+      const arr = p?.research?.sources?.mcp;
+      return Array.isArray(arr) ? (arr as any[]) : [];
+    })();
+
+    const mcpSourcesPath = path.join(evidenceDir, "mcp_sources.json");
+    if (mcpCalls.length > 0) {
+      const cfg = loadMcpServersFile(wsRoot);
+      if (!cfg) {
+        const err = new Error(`MCP sources requested but missing config: ${path.join(wsRoot, "_cfg", "mcp-servers.yaml")}`) as Error & {
+          exitCode?: number;
+        };
+        err.exitCode = 10;
+        throw err;
+      }
+
+      const maxCalls = (() => {
+        const p = (request.params ?? {}) as any;
+        const v = p?.research?.sources?.mcpLimits?.maxCalls;
+        return typeof v === "number" && v >= 0 ? v : 10;
+      })();
+
+      const exceeds = mcpCalls.length > maxCalls;
+      let approvedToExceed: boolean | null = null;
+      if (exceeds) {
+        const ok = await (ctx as any).confirmSensitiveRead({
+          kind: "mcp_call",
+          count: mcpCalls.length,
+          approxMB: 0,
+          reason: `planned MCP calls (${mcpCalls.length}) exceed maxCalls (${maxCalls})`
+        });
+        approvedToExceed = ok;
+        if (!ok) {
+          writeJson(mcpSourcesPath, {
+            skipped: true,
+            reason: "operator_rejected",
+            plannedCount: mcpCalls.length,
+            maxCalls,
+            sources: []
+          });
+        }
+      }
+
+      if (!fs.existsSync(mcpSourcesPath)) {
+        const evidenceJsonPath = path.join(evidenceDir, "evidence.json");
+        const existingEvidence = fs.existsSync(evidenceJsonPath)
+          ? (JSON.parse(fs.readFileSync(evidenceJsonPath, "utf-8")) as unknown)
+          : [];
+        const evidenceArr = Array.isArray(existingEvidence) ? (existingEvidence as any[]) : [];
+        let nextE = nextEvidenceNumber(evidenceArr);
+        let nextS = nextSourceNumber(sourcesData?.sources ?? null);
+
+        const sources: Array<Record<string, unknown>> = [];
+        const accessedDate = accessedAt.slice(0, 10);
+        const callsToApply = exceeds ? (approvedToExceed ? mcpCalls : mcpCalls.slice(0, maxCalls)) : mcpCalls;
+
+        for (const c of callsToApply) {
+          const serverId = c?.serverId ? String(c.serverId) : null;
+          const capabilityId = c?.capabilityId ? String(c.capabilityId) : null;
+          const tool = c?.tool ? String(c.tool) : null;
+          const input = c?.input && typeof c.input === "object" ? c.input : {};
+
+          const resolved = (() => {
+            if (tool) {
+              if (!serverId) return null;
+              const server = cfg.servers.find((s) => s.id === serverId);
+              if (!server) return null;
+              return { server, toolName: tool };
+            }
+            if (capabilityId) {
+              const hit = resolveToolForCapability({
+                servers: cfg.servers as any,
+                capabilityId,
+                preferredServerId: serverId ?? undefined
+              });
+              return hit ? { server: hit.server as any, toolName: hit.toolName } : null;
+            }
+            return null;
+          })();
+
+          if (!resolved) {
+            ctx.log({
+              event: "mcp.ingest.skipped",
+              reason: "unresolved_tool",
+              serverId,
+              capabilityId,
+              tool
+            });
+            continue;
+          }
+
+          const sourceRef = `mcp:server:${resolved.server.id}:tool:${resolved.toolName}`;
+          try {
+            const raw = await callMcpToolIsolated(resolved.server as any, resolved.toolName, input, { timeoutMs: 30_000 });
+            const rawJson = JSON.stringify(raw, null, 2);
+            const { redacted, stats } = redactBasic(rawJson);
+            const excerpt = [
+              "# MCP excerpt",
+              "",
+              `- source: ${sourceRef}`,
+              `- server: ${resolved.server.id}`,
+              `- tool: ${resolved.toolName}`,
+              `- accessed: ${accessedDate}`,
+              "",
+              "## Output (redacted JSON)",
+              "",
+              "```json",
+              redacted.slice(0, 8000),
+              "```",
+              "",
+              "## Redaction",
+              "",
+              `- emails: ${stats.emails}`,
+              `- phones: ${stats.phones}`,
+              `- longIds: ${stats.longIds}`,
+              ""
+            ].join("\n");
+
+            const outPath = `outputs/evidence/mcp_${safeFileSlug(resolved.server.id)}_${safeFileSlug(resolved.toolName)}_${nextE}.md`;
+            ctx.writeText(outPath, excerpt);
+
+            const sha = sha256Hex(excerpt);
+            evidenceArr.push({
+              id: `E${nextE}`,
+              sourceRef,
+              derivedFrom: "private_tool",
+              path: outPath,
+              contentType: "text/markdown",
+              redacted: true,
+              sha256: sha,
+              notes: "MCP tool output excerpt (redacted)"
+            });
+
+            sources.push({
+              sourceId: `S${nextS}`,
+              type: "private_tool",
+              sourceRef,
+              name: c?.title ? String(c.title) : `${resolved.server.id}:${resolved.toolName}`,
+              accessedDate,
+              excerptRef: outPath,
+              sha256: sha
+            });
+
+            nextE += 1;
+            nextS += 1;
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            ctx.log({ event: "mcp.ingest.failed", serverId: resolved.server.id, tool: resolved.toolName, error: msg });
+          }
+        }
+
+        writeJson(evidenceJsonPath, evidenceArr);
+        writeJson(mcpSourcesPath, {
+          skipped: false,
+          plannedCount: mcpCalls.length,
+          appliedCount: sources.length,
+          maxCalls,
+          capsExceeded: exceeds,
+          operatorApprovedToExceed: approvedToExceed,
+          sources
+        });
+      }
+    } else {
+      if (!fs.existsSync(mcpSourcesPath)) {
+        writeJson(mcpSourcesPath, { skipped: false, plannedCount: 0, appliedCount: 0, maxCalls: 10, sources: [] });
+      }
+    }
+
     const accessed = accessedAt.slice(0, 10);
+    const mcpSourcesData = (() => {
+      if (!fs.existsSync(mcpSourcesPath)) return null;
+      const parsed = JSON.parse(fs.readFileSync(mcpSourcesPath, "utf-8")) as any;
+      const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.sources) ? parsed.sources : null;
+      if (!Array.isArray(arr)) return null;
+      return {
+        meta: {
+          plannedCount: typeof parsed?.plannedCount === "number" ? parsed.plannedCount : null,
+          appliedCount: typeof parsed?.appliedCount === "number" ? parsed.appliedCount : null,
+          maxCalls: typeof parsed?.maxCalls === "number" ? parsed.maxCalls : null,
+          capsExceeded: typeof parsed?.capsExceeded === "boolean" ? parsed.capsExceeded : null,
+          operatorApprovedToExceed: typeof parsed?.operatorApprovedToExceed === "boolean" ? parsed.operatorApprovedToExceed : null
+        },
+        sources: arr as Array<{
+          sourceId?: string;
+          sourceRef?: string;
+          name?: string | null;
+          accessedDate?: string;
+          excerptRef?: string;
+        }>
+      };
+    })();
+
     const lines: string[] = [];
     lines.push("# Research Pack — deep_research_sparring");
     lines.push("");
     lines.push("This is a **v0.1** research pack scaffold:");
     lines.push("- claims should be tied to sources via `[S#]`");
-    lines.push("- sources can be **public** and **private** (e.g. Drive refs)");
+    lines.push("- sources can be **public** and **private** (e.g. Drive refs, MCP tools)");
     lines.push("");
     lines.push("## Findings (stub)");
     lines.push(
       "- Evidence-based loops beat ad-hoc tactics: map recommendations to KPI nodes and measurable next actions. [S1]"
     );
-    if (sourcesData && sourcesData.sources.length > 0) {
-      const firstSid = sourcesData.sources[0]?.sourceId ?? "S2";
-      const extra =
-        sourcesData.meta.skippedItemsCount && sourcesData.meta.skippedItemsCount > 0
+    const driveCount = sourcesData?.sources.length ?? 0;
+    const mcpCount = mcpSourcesData?.sources.length ?? 0;
+    const privateTotal = driveCount + mcpCount;
+    if (privateTotal > 0) {
+      const firstSid = (sourcesData?.sources[0]?.sourceId ?? mcpSourcesData?.sources[0]?.sourceId) ?? "S2";
+      const driveExtra =
+        sourcesData?.meta.skippedItemsCount && sourcesData.meta.skippedItemsCount > 0
           ? ` (${sourcesData.meta.skippedItemsCount} skipped due to caps)`
           : "";
-      lines.push(
-        `- Private sources ingested from Drive (${sourcesData.sources.length})${extra}. See excerpts. [${firstSid}]`
-      );
+      const mcpExtra =
+        mcpSourcesData?.meta.capsExceeded && mcpSourcesData.meta.operatorApprovedToExceed === false
+          ? " (some skipped due to caps)"
+          : "";
+      const parts: string[] = [];
+      if (driveCount > 0) parts.push(`Drive (${driveCount})${driveExtra}`);
+      if (mcpCount > 0) parts.push(`MCP (${mcpCount})${mcpExtra}`);
+      lines.push(`- Private sources ingested: ${parts.join(", ")}. See excerpts. [${firstSid}]`);
     } else {
-      lines.push("- No private sources ingested in this run (provide request params to enable Drive).");
+      lines.push("- No private sources ingested in this run (provide request params to enable Drive/MCP).");
     }
     lines.push("");
     lines.push("## Sources");
@@ -851,13 +1127,31 @@ export async function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): 
         lines.push(`- [${sid}] (private_doc) ${name} — ${ref} — accessed ${ad}`);
       }
     }
-    lines.push("");
-    if (sourcesData && sourcesData.sources.length > 0) {
-      lines.push("## Private excerpts");
-      for (const s of sourcesData.sources) {
-        if (!s.excerptRef) continue;
+    if (mcpSourcesData && mcpSourcesData.sources.length > 0) {
+      for (const s of mcpSourcesData.sources) {
         const sid = s.sourceId ?? "S?";
-        lines.push(`- [${sid}] ${s.excerptRef}`);
+        const ref = s.sourceRef ?? "mcp:server:unknown:tool:unknown";
+        const name = s.name ? String(s.name) : "(unnamed)";
+        const ad = s.accessedDate ?? accessed;
+        lines.push(`- [${sid}] (private_tool) ${name} — ${ref} — accessed ${ad}`);
+      }
+    }
+    lines.push("");
+    if ((sourcesData && sourcesData.sources.length > 0) || (mcpSourcesData && mcpSourcesData.sources.length > 0)) {
+      lines.push("## Private excerpts");
+      if (sourcesData && sourcesData.sources.length > 0) {
+        for (const s of sourcesData.sources) {
+          if (!s.excerptRef) continue;
+          const sid = s.sourceId ?? "S?";
+          lines.push(`- [${sid}] ${s.excerptRef}`);
+        }
+      }
+      if (mcpSourcesData && mcpSourcesData.sources.length > 0) {
+        for (const s of mcpSourcesData.sources) {
+          if (!s.excerptRef) continue;
+          const sid = s.sourceId ?? "S?";
+          lines.push(`- [${sid}] ${s.excerptRef}`);
+        }
       }
       lines.push("");
     }

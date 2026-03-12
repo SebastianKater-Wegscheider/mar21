@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import YAML from "yaml";
-import { callMcpTool, listMcpTools, loadMcpServersFile, loadWorkspaceSecretsIntoEnv } from "@mar21/mcp";
+import { callMcpToolIsolated, listMcpToolsIsolated, loadMcpServersFile, loadWorkspaceSecretsIntoEnv } from "@mar21/mcp";
 import { requireWorkspaceRoot, resolveWorkspaceId } from "./workspace.js";
 
 type Ajv2020Class = typeof import("ajv/dist/2020.js").default;
@@ -51,6 +51,21 @@ function readYamlFile(filePath: string): unknown {
     err.exitCode = 11;
     throw err;
   }
+}
+
+function asMcpCliError(action: string, serverId: string, err: unknown): Error & { exitCode?: number } {
+  const msg = err instanceof Error ? err.message : String(err);
+  const hints: string[] = [];
+  if (/credentials not found/i.test(msg) || /\bauth\b/i.test(msg)) {
+    hints.push("server requires auth/bootstrap; run the server's documented auth flow first");
+  }
+  if (/connection closed/i.test(msg)) {
+    hints.push("server process exited early; check env vars and run the command manually to see stderr");
+  }
+  const hint = hints.length > 0 ? `\nHint: ${hints.join("; ")}.` : "";
+  const e = new Error(`MCP ${action} failed for server '${serverId}': ${msg}${hint}`) as Error & { exitCode?: number };
+  e.exitCode = 20;
+  return e;
 }
 
 export async function mcpDoctor(opts: { workspace?: string; json?: boolean }): Promise<void> {
@@ -136,7 +151,12 @@ export async function mcpTools(opts: { workspace?: string; serverId: string; jso
     throw err;
   }
 
-  const tools = await listMcpTools(server as any);
+  let tools: Array<{ name: string; description?: string }> = [];
+  try {
+    tools = await listMcpToolsIsolated(server as any);
+  } catch (e) {
+    throw asMcpCliError("tools", opts.serverId, e);
+  }
   if (opts.json) {
     process.stdout.write(`${JSON.stringify({ tools })}\n`);
     return;
@@ -185,7 +205,12 @@ export async function mcpCall(opts: {
     throw err;
   }
 
-  const out = await callMcpTool(server as any, opts.tool, input);
+  let out: unknown;
+  try {
+    out = await callMcpToolIsolated(server as any, opts.tool, input);
+  } catch (e) {
+    throw asMcpCliError(`call (${opts.tool})`, opts.serverId, e);
+  }
   const raw = JSON.stringify(out, null, opts.json ? 0 : 2);
   process.stdout.write(`${raw}\n`);
 }
