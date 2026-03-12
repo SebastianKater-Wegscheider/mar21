@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import YAML from "yaml";
+import { executeSkillPipeline, type SkillExecutionResult, type SkillStep } from "@mar21/core";
 import {
   defaultModeFromContext,
   ensureDir,
@@ -46,10 +47,12 @@ function pickRunId(runsDir: string, baseRunId: string): string {
 }
 
 function writeJson(filePath: string, data: unknown): void {
+  ensureDir(path.dirname(filePath));
   fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf-8");
 }
 
 function writeText(filePath: string, data: string): void {
+  ensureDir(path.dirname(filePath));
   fs.writeFileSync(filePath, data.endsWith("\n") ? data : `${data}\n`, "utf-8");
 }
 
@@ -224,6 +227,20 @@ function logsLine(event: Record<string, unknown>): string {
   return `${JSON.stringify({ ts: nowIso(), level: "info", ...event })}\n`;
 }
 
+function safeJoin(baseDir: string, relativePath: string): string {
+  const resolved = path.resolve(baseDir, relativePath);
+  const baseResolved = path.resolve(baseDir);
+  if (!resolved.startsWith(`${baseResolved}${path.sep}`) && resolved !== baseResolved) {
+    throw new Error(`refusing to access path outside base: ${relativePath}`);
+  }
+  return resolved;
+}
+
+function skillOutputsPath(skillId: string): string {
+  const safe = skillId.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toLowerCase();
+  return `outputs/skill_outputs/${safe}.json`;
+}
+
 function writeRequestYaml(args: {
   inputsDir: string;
   workflowId: string;
@@ -232,17 +249,15 @@ function writeRequestYaml(args: {
   since: string;
   params?: Record<string, unknown>;
 }): void {
-  writeText(
-    path.join(args.inputsDir, "request.yaml"),
-    YAML.stringify({
-      apiVersion: "mar21/request-v1",
-      workflowId: args.workflowId,
-      workspace: args.workspaceId,
-      mode: args.mode,
-      since: args.since,
-      params: args.params ?? {}
-    })
-  );
+  const req = {
+    apiVersion: "mar21/request-v1",
+    workflowId: args.workflowId,
+    workspace: args.workspaceId,
+    mode: args.mode,
+    since: args.since,
+    params: args.params ?? {}
+  };
+  writeText(path.join(args.inputsDir, "request.yaml"), YAML.stringify(req));
 }
 
 export function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): RunSummary {
@@ -294,6 +309,41 @@ export function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): RunSum
   writeText(path.join(outputsDir, "plan.md"), planTemplate(workflowId));
   writeText(path.join(outputsDir, "report.md"), reportTemplate(workflowId));
 
+  const logsPath = path.join(runDir, "logs.jsonl");
+  writeText(logsPath, logsLine({ event: "run.started", runId, workflowId, workspace: workspaceId }));
+
+  const request = {
+    apiVersion: "mar21/request-v1",
+    workflowId,
+    workspace: workspaceId,
+    mode,
+    since,
+    params: opts.params ?? {}
+  };
+
+  const ctx = {
+    repoRoot,
+    workspaceId,
+    workspaceRoot: wsRoot,
+    runId,
+    runDir,
+    inputsDir,
+    outputsDir,
+    evidenceDir,
+    mode,
+    since,
+    dryRun: Boolean(opts.dryRun),
+    context,
+    request,
+    writeText: (relativePath: string, content: string) =>
+      writeText(safeJoin(runDir, relativePath), content),
+    writeJson: (relativePath: string, data: unknown) => writeJson(safeJoin(runDir, relativePath), data),
+    writeYaml: (relativePath: string, data: unknown) =>
+      writeText(safeJoin(runDir, relativePath), YAML.stringify(data)),
+    exists: (relativePath: string) => fs.existsSync(safeJoin(runDir, relativePath)),
+    log: (event: Record<string, unknown>) => fs.appendFileSync(logsPath, logsLine(event), "utf-8")
+  } as const;
+
   const changeset: Record<string, unknown> = {
     apiVersion: "mar21/changeset-v1",
     runId,
@@ -301,6 +351,39 @@ export function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): RunSum
     mode,
     ops: []
   };
+
+  const ops: Array<Record<string, unknown>> = [];
+  const skillsExecuted: SkillExecutionResult[] = [];
+
+  const pipelineForWorkflow = (slugId: string): SkillStep[] => {
+    if (slugId === "content_brief") {
+      return [{ skillId: "content.brief_generate", inputs: { assetType: "landing_page" } }];
+    }
+    if (slugId === "landing_page_iteration") {
+      return [
+        { skillId: "content.brief_generate", inputs: { assetType: "landing_page" } },
+        { skillId: "content.wordpress_draft_create", inputs: {} },
+        { skillId: "ads.meta_creative_refresh_plan", inputs: {} }
+      ];
+    }
+    return [];
+  };
+
+  const pipeline = pipelineForWorkflow(slug);
+  if (pipeline.length > 0) {
+    try {
+      const res = executeSkillPipeline({ ctx: ctx as any, steps: pipeline });
+      for (const r of res) {
+        skillsExecuted.push(r);
+        ctx.writeJson(skillOutputsPath(r.skillId), r.outputs);
+        for (const op of r.ops) ops.push(op);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      ctx.log({ event: "run.failed", runId, error: msg });
+      throw e;
+    }
+  }
 
   if (slug === "deep_research_sparring") {
     const accessedAt = nowIso();
@@ -329,13 +412,12 @@ export function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): RunSum
       ]
     );
 
-    changeset.ops = deepResearchSparringOps();
+    for (const op of deepResearchSparringOps()) ops.push(op);
   }
 
+  (changeset as any).ops = ops;
   writeText(path.join(runDir, "changeset.yaml"), YAML.stringify(changeset));
 
-  const logsPath = path.join(runDir, "logs.jsonl");
-  writeText(logsPath, logsLine({ event: "run.started", runId, workflowId, workspace: workspaceId }));
   fs.appendFileSync(logsPath, logsLine({ event: "run.outputs", outputsDir: "outputs/" }), "utf-8");
 
   writeJson(path.join(runDir, "approvals.json"), []);
@@ -350,6 +432,7 @@ export function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): RunSum
     since,
     startedAt,
     finishedAt,
+    skillsExecuted: skillsExecuted.map((s) => s.skillId),
     connectorsUsed: [],
     writesAttempted: false
   });

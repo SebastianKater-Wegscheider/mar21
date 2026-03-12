@@ -1,0 +1,37 @@
+apiVersion: mar21/skill-v1
+id: content.wordpress_draft_create
+domain: content
+description: "Create a local draft (v0.1) + propose supervised tasks for WordPress draft creation."
+
+inputs:
+  schema:
+    type: object
+    additionalProperties: true
+    properties:
+      title: { type: string }
+      cta: { type: string }
+
+outputs:
+  schema:
+    type: object
+    required: [draftRef]
+    additionalProperties: true
+    properties:
+      draftRef: { type: string }
+      title: { type: string }
+      cta: { type: string }
+
+usesConnectors:
+  - wordpress.write.post.create_draft
+
+risk:
+  level: low
+  writes: false
+
+artifacts:
+  produces:
+    - outputs/drafts/wordpress_draft_v1.md
+
+idempotency:
+  strategy: snapshot_based
+
