@@ -390,6 +390,7 @@ export async function applyRunChangeset(opts: ApplyOptions): Promise<{ summary: 
   const results: ApplyResult[] = [];
 
   const promptTo = opts.json ? process.stderr : process.stdout;
+  const canPrompt = Boolean(process.stdin.isTTY);
 
   for (const op of cs.ops ?? []) {
     if (alreadyApplied(applyState, op)) {
@@ -401,14 +402,20 @@ export async function applyRunChangeset(opts: ApplyOptions): Promise<{ summary: 
     try {
       let approved = true;
       if (op.requiresApproval) {
-        if (opts.yes) approved = true;
-        else approved = await promptApprove(op, promptTo);
+        if (opts.yes) {
+          approved = true;
+        } else if (!canPrompt) {
+          approved = false;
+        } else {
+          approved = await promptApprove(op, promptTo);
+        }
 
         approvals.push({
           opId: op.id,
           decision: approved ? "approved" : "rejected",
           decidedAt: nowIso(),
-          by: opts.yes ? "cli" : "operator"
+          by: opts.yes ? "cli" : canPrompt ? "operator" : "cli",
+          note: !opts.yes && !canPrompt ? "non_interactive: auto-rejected (use --yes for CI)" : undefined
         });
         writeApprovals(runDir, approvals);
         appendLogLine(runDir, {
