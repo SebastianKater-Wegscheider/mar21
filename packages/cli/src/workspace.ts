@@ -36,8 +36,10 @@ export function requireWorkspaceRoot(repoRoot: string, workspaceId: string): str
   if (!fs.existsSync(wsRoot) || !fs.statSync(wsRoot).isDirectory()) {
     const err = new Error(`workspace not found: ${workspaceId} (${wsRoot})`) as Error & {
       code?: string;
+      exitCode?: number;
     };
     err.code = "MAR21_WORKSPACE_NOT_FOUND";
+    err.exitCode = 10;
     throw err;
   }
   return wsRoot;

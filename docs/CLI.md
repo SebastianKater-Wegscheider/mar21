@@ -8,6 +8,9 @@ This document defines the **exact** CLI surface and UX expectations. Implementer
 ```
 mar21 init --workspace <id> [--stack <preset>] [--connectors <list>] [--force]
 
+mar21 session [--workspace <id>] [--since <duration>] [--mode <mode>]
+mar21 start [--workspace <id>] [--since <duration>] [--mode <mode>]   # alias for session
+
 mar21 plan <workflowId> --workspace <id> [--request <path>] [--mode <mode>] [--since <duration>] [--dry-run] [--json]
 mar21 analyze <scope> --workspace <id> [--mode <mode>] [--since <duration>] [--dry-run] [--json]
 mar21 report <cadence|workflowId> --workspace <id> [--since <duration>] [--json]
@@ -16,6 +19,8 @@ mar21 run daily|weekly|monthly --workspace <id> [--profile <profileId>] [--mode 
 mar21 autopilot start --workspace <id> --profile <profileId> [--mode <mode>] [--dry-run] [--foreground]
 
 mar21 apply <runId> --workspace <id> [--yes] [--fail-on-reject] [--json]
+
+mar21 show <runId|latest> <artifact> --workspace <id>
 
 mar21 mcp doctor --workspace <id> [--json]
 mar21 mcp tools --workspace <id> --server <serverId> [--json]

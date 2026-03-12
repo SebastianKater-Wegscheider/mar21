@@ -4,6 +4,7 @@ import process from "node:process";
 import { loadProfile, profilePathFor } from "./profile.js";
 import { runPlan, RunSummary } from "./run-engine.js";
 import { Mode, resolveWorkspaceId, workspaceRoot } from "./workspace.js";
+import { resolveRepoRoot } from "./repo-root.js";
 
 export type RunCadenceOptions = {
   cadence: "daily" | "weekly" | "monthly";
@@ -22,7 +23,7 @@ export type RunCadenceSummary = {
 };
 
 function repoRootFromCwd(): string {
-  return process.cwd();
+  return resolveRepoRoot(process.cwd());
 }
 
 export async function runCadence(opts: RunCadenceOptions): Promise<RunCadenceSummary> {

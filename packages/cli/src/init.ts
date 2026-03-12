@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import YAML from "yaml";
 import { ensureDir } from "./workspace.js";
+import { resolveRepoRoot } from "./repo-root.js";
 
 export type InitOptions = {
   workspace?: string;
@@ -11,19 +12,17 @@ export type InitOptions = {
   force?: boolean;
 };
 
-function findRepoRootFromCwd(): string | null {
-  let dir = process.cwd();
-  for (let i = 0; i < 25; i += 1) {
-    const packagesDir = path.join(dir, "packages");
-    const schemasDir = path.join(dir, "schemas");
-    const docsDir = path.join(dir, "docs");
-    if (fs.existsSync(packagesDir) && fs.existsSync(schemasDir) && fs.existsSync(docsDir)) return dir;
+function looksLikeRepoRoot(dir: string): boolean {
+  const packagesDir = path.join(dir, "packages");
+  const schemasDir = path.join(dir, "schemas");
+  const docsDir = path.join(dir, "docs");
+  const workspacesDir = path.join(dir, "workspaces");
+  return fs.existsSync(packagesDir) && fs.existsSync(schemasDir) && fs.existsSync(docsDir) && fs.existsSync(workspacesDir);
+}
 
-    const parent = path.dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-  return null;
+function findRepoRootFromCwd(): string | null {
+  const resolved = resolveRepoRoot(process.cwd());
+  return looksLikeRepoRoot(resolved) ? resolved : null;
 }
 
 function validateWorkspaceId(id: string): boolean {
@@ -279,6 +278,13 @@ export function initWorkspace(opts: InitOptions): { workspace: string; root: str
   }
 
   const repoRoot = findRepoRootFromCwd() ?? process.cwd();
+  if (!looksLikeRepoRoot(repoRoot)) {
+    const err = new Error(
+      "could not locate mar21 repo root (expected packages/, schemas/, docs/, workspaces/). Run from inside the repo."
+    ) as Error & { exitCode?: number };
+    err.exitCode = 10;
+    throw err;
+  }
   const wsRoot = path.join(repoRoot, "workspaces", workspaceId);
 
   if (fs.existsSync(wsRoot)) {
