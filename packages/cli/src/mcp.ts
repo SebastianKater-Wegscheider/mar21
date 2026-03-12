@@ -6,6 +6,7 @@ import process from "node:process";
 import YAML from "yaml";
 import { callMcpToolIsolated, listMcpToolsIsolated, loadMcpServersFile, loadWorkspaceSecretsIntoEnv } from "@mar21/mcp";
 import { requireWorkspaceRoot, resolveWorkspaceId } from "./workspace.js";
+import { resolveRepoRoot } from "./repo-root.js";
 
 type Ajv2020Class = typeof import("ajv/dist/2020.js").default;
 type Ajv2020Instance = InstanceType<Ajv2020Class>;
@@ -15,7 +16,7 @@ const addFormats = ((addFormatsImport as unknown as { default?: unknown }).defau
   addFormatsImport) as unknown as (ajv: Ajv2020Instance) => void;
 
 function repoRootFromCwd(): string {
-  return process.cwd();
+  return resolveRepoRoot(process.cwd());
 }
 
 function loadJsonFile(filePath: string): unknown {

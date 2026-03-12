@@ -21,6 +21,7 @@ import {
   utcTimestampForRunId,
   workspaceRoot
 } from "./workspace.js";
+import { resolveRepoRoot } from "./repo-root.js";
 
 export type RunSummary = {
   runId: string;
@@ -41,7 +42,7 @@ export type PlanCommandOptions = {
 };
 
 function repoRootFromCwd(): string {
-  return process.cwd();
+  return resolveRepoRoot(process.cwd());
 }
 
 function pickRunId(runsDir: string, baseRunId: string): string {

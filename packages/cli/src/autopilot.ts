@@ -3,6 +3,7 @@ import { loadProfile, profilePathFor } from "./profile.js";
 import { runPlan, RunSummary } from "./run-engine.js";
 import { Mode, resolveWorkspaceId, workspaceRoot } from "./workspace.js";
 import fs from "node:fs";
+import { resolveRepoRoot } from "./repo-root.js";
 
 export type AutopilotOptions = {
   workspace?: string;
@@ -13,7 +14,7 @@ export type AutopilotOptions = {
 };
 
 function repoRootFromCwd(): string {
-  return process.cwd();
+  return resolveRepoRoot(process.cwd());
 }
 
 function intervalMsForProfile(profileId: string): number {

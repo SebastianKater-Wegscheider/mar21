@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import readline from "node:readline/promises";
 import { ensureDir, readYamlFile, resolveWorkspaceId, writeYamlFile } from "./workspace.js";
+import { resolveRepoRoot } from "./repo-root.js";
 
 type ChangeSetOp = {
   id: string;
@@ -70,7 +71,7 @@ function nowIso(): string {
 }
 
 function repoRootFromCwd(): string {
-  return process.cwd();
+  return resolveRepoRoot(process.cwd());
 }
 
 function safeJoin(baseDir: string, relativePath: string): string {

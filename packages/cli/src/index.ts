@@ -7,6 +7,8 @@ import { initWorkspace } from "./init.js";
 import { mcpCall, mcpDoctor, mcpScaffoldMapping, mcpTools } from "./mcp.js";
 import { runCadence } from "./run-cadence.js";
 import { runAnalyze, runPlan, runReport } from "./run-engine.js";
+import { runSession } from "./session.js";
+import { showArtifact } from "./show.js";
 import { validateExamples } from "./validate.js";
 
 process.on("uncaughtException", (err) => {
@@ -67,6 +69,31 @@ program
       console.log(`✓ workspace initialized: ${res.workspace} (${res.root})`);
     }
   );
+
+program
+  .command("session")
+  .alias("start")
+  .description("Run a guided marketer-mode session (v0.1)")
+  .option("--workspace <id>", "Workspace id (will prompt if omitted)")
+  .option("--since <duration>", "ISO 8601 duration, e.g. P7D or P28D", undefined)
+  .option("--mode <mode>", "advisory|supervised|autonomous", undefined)
+  .action(async (opts: { workspace?: string; since?: string; mode?: string }) => {
+    const mode =
+      opts.mode === "advisory" || opts.mode === "supervised" || opts.mode === "autonomous"
+        ? opts.mode
+        : undefined;
+    await runSession({ workspace: opts.workspace, since: opts.since, mode });
+  });
+
+program
+  .command("show")
+  .description("Print an artifact to stdout (marketer-friendly)")
+  .argument("<runId>", "Run id, or 'latest'")
+  .argument("<artifact>", "research_pack|report|plan|decision_log|changeset|todos|context|creative_brief")
+  .option("--workspace <id>", "Workspace id")
+  .action((runId: string, artifact: string, opts: { workspace?: string }) => {
+    process.exit(showArtifact({ workspace: opts.workspace, runId, artifact }));
+  });
 
 program
   .command("validate")

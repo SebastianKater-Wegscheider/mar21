@@ -51,6 +51,8 @@ This repo specifies an opinionated CLI, even before code exists:
 
 ```bash
 mar21 init --workspace acme --stack default
+mar21 session --workspace acme
+mar21 show latest research_pack --workspace acme
 mar21 plan gtm --workspace acme
 
 mar21 analyze week --workspace acme
