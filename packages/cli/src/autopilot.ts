@@ -58,14 +58,22 @@ export async function autopilotStart(opts: AutopilotOptions): Promise<void> {
   const profileId = opts.profileId.trim();
   const profile = loadProfile(profilePathFor(wsRoot, profileId));
   const intervalMs = intervalMsForProfile(profileId);
+  const maxTicksRaw = process.env.MAR21_AUTOPILOT_MAX_TICKS;
+  const maxTicks =
+    maxTicksRaw && Number.isFinite(Number(maxTicksRaw)) && Number(maxTicksRaw) > 0
+      ? Math.floor(Number(maxTicksRaw))
+      : null;
 
   process.stdout.write(`autopilot: started (workspace=${workspaceId}, profile=${profileId})\n`);
   process.stdout.write(`autopilot: interval=${Math.round(intervalMs / 1000)}s (v0.1 heuristic)\n`);
+  if (maxTicks !== null) process.stdout.write(`autopilot: maxTicks=${maxTicks}\n`);
 
   let shouldStop = false;
   process.on("SIGINT", () => {
     shouldStop = true;
   });
+
+  let ticks = 0;
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -89,6 +97,12 @@ export async function autopilotStart(opts: AutopilotOptions): Promise<void> {
     }
 
     for (const r of runs) process.stdout.write(`- ${r.runId}\n`);
+    ticks += 1;
+    if (maxTicks !== null && ticks >= maxTicks) {
+      process.stdout.write("autopilot: done\n");
+      return;
+    }
+
     process.stdout.write(`autopilot: sleep\n`);
     await sleep(intervalMs);
   }
