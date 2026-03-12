@@ -20,6 +20,7 @@ mar21 apply <runId> --workspace <id> [--yes] [--fail-on-reject] [--json]
 mar21 mcp doctor --workspace <id> [--json]
 mar21 mcp tools --workspace <id> --server <serverId> [--json]
 mar21 mcp call --workspace <id> --server <serverId> --tool <toolName> --input <json> [--json]
+mar21 mcp scaffold-mapping --workspace <id> --server <serverId> [--apply] [--force] [--json]
 ```
 
 ### Optional task convenience commands (v1)

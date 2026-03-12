@@ -53,6 +53,25 @@ function readYamlFile(filePath: string): unknown {
   }
 }
 
+function safeSlug(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 32);
+}
+
+function scaffoldCapabilityId(serverId: string, toolName: string): string {
+  // If the MCP tool name already matches mar21's capability-id convention, preserve it.
+  const normalized = toolName.trim();
+  if (/^[a-z0-9]+\.[a-z0-9]+\.[a-z0-9_.-]+\.[a-z0-9_.-]+$/.test(normalized)) return normalized;
+
+  // Otherwise generate a placeholder that validates and is easy to edit.
+  // Convention: `<serverId>.read.mcp_tool.<slug>`
+  return `${safeSlug(serverId) || "mcp"}.read.mcp_tool.${safeSlug(normalized) || "tool"}`;
+}
+
 function asMcpCliError(action: string, serverId: string, err: unknown): Error & { exitCode?: number } {
   const msg = err instanceof Error ? err.message : String(err);
   const hints: string[] = [];
@@ -162,6 +181,97 @@ export async function mcpTools(opts: { workspace?: string; serverId: string; jso
     return;
   }
   for (const t of tools) console.log(`- ${t.name}${t.description ? ` — ${t.description}` : ""}`);
+}
+
+export async function mcpScaffoldMapping(opts: {
+  workspace?: string;
+  serverId: string;
+  apply?: boolean;
+  force?: boolean;
+  json?: boolean;
+}): Promise<void> {
+  const repoRoot = repoRootFromCwd();
+  const workspaceId = resolveWorkspaceId(opts.workspace);
+  if (!workspaceId) {
+    const err = new Error("missing --workspace (or MAR21_WORKSPACE)");
+    (err as Error & { exitCode?: number }).exitCode = 2;
+    throw err;
+  }
+
+  const wsRoot = requireWorkspaceRoot(repoRoot, workspaceId);
+  loadWorkspaceSecretsIntoEnv(wsRoot);
+  const cfgPath = path.join(wsRoot, "_cfg", "mcp-servers.yaml");
+
+  const cfg = loadMcpServersFile(wsRoot);
+  if (!cfg) {
+    const err = new Error(`missing MCP servers config: ${cfgPath}`);
+    (err as Error & { exitCode?: number }).exitCode = 10;
+    throw err;
+  }
+
+  const server = cfg.servers.find((s) => s.id === opts.serverId);
+  if (!server) {
+    const err = new Error(`mcp server not found: ${opts.serverId}`) as Error & { exitCode?: number };
+    err.exitCode = 2;
+    throw err;
+  }
+
+  let tools: Array<{ name: string; description?: string }> = [];
+  try {
+    tools = await listMcpToolsIsolated(server as any);
+  } catch (e) {
+    throw asMcpCliError("scaffold-mapping (tools)", opts.serverId, e);
+  }
+
+  const mappings = tools.map((t) => ({
+    capabilityId: scaffoldCapabilityId(server.id, t.name),
+    toolName: t.name
+  }));
+
+  if (opts.json) {
+    process.stdout.write(`${JSON.stringify({ workspace: workspaceId, server: server.id, mappings })}\n`);
+    return;
+  }
+
+  const snippet = YAML.stringify({ capabilities: mappings });
+  if (!opts.apply) {
+    process.stdout.write(`# Paste into: workspaces/${workspaceId}/_cfg/mcp-servers.yaml (server: ${server.id})\n`);
+    process.stdout.write(snippet);
+    return;
+  }
+
+  // Apply into config (rewrite YAML, may drop comments/formatting).
+  const doc = readYamlFile(cfgPath) as any;
+  if (!doc || typeof doc !== "object") {
+    const err = new Error(`invalid YAML (expected object): ${cfgPath}`) as Error & { exitCode?: number };
+    err.exitCode = 11;
+    throw err;
+  }
+  if (doc.apiVersion !== "mar21/mcp-servers-v1" || !Array.isArray(doc.servers)) {
+    const err = new Error(`unsupported mcp-servers.yaml format: ${cfgPath}`) as Error & { exitCode?: number };
+    err.exitCode = 11;
+    throw err;
+  }
+
+  const idx = doc.servers.findIndex((s: any) => s?.id === server.id);
+  if (idx === -1) {
+    const err = new Error(`mcp server not found in yaml: ${server.id}`) as Error & { exitCode?: number };
+    err.exitCode = 11;
+    throw err;
+  }
+
+  const existing = Array.isArray(doc.servers[idx].capabilities) ? doc.servers[idx].capabilities : [];
+  if (existing.length > 0 && !opts.force) {
+    // Merge: keep existing entries and add new tool names not present yet.
+    const existingToolNames = new Set(existing.map((e: any) => (e?.toolName ? String(e.toolName) : "")));
+    const merged = [...existing, ...mappings.filter((m) => !existingToolNames.has(m.toolName))];
+    doc.servers[idx].capabilities = merged;
+  } else {
+    doc.servers[idx].capabilities = mappings;
+  }
+
+  fs.writeFileSync(cfgPath, YAML.stringify(doc), "utf-8");
+  console.log(`✓ wrote capability mappings to: ${path.relative(repoRoot, cfgPath)}`);
 }
 
 export async function mcpCall(opts: {
