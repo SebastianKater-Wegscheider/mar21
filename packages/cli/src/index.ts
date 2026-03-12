@@ -5,6 +5,7 @@ import { applyRunChangeset } from "./apply-engine.js";
 import { autopilotStart } from "./autopilot.js";
 import { initWorkspace } from "./init.js";
 import { mcpCall, mcpDoctor, mcpScaffoldMapping, mcpTools } from "./mcp.js";
+import { mcpAddServer } from "./mcp-add.js";
 import { runCadence } from "./run-cadence.js";
 import { runAnalyze, runPlan, runReport } from "./run-engine.js";
 import { runSession } from "./session.js";
@@ -107,6 +108,14 @@ program
 program
   .command("mcp")
   .description("MCP utilities (v0.1: stdio transport)")
+  .addCommand(
+    new Command("add")
+      .description("Add an MCP server to this workspace (wizard)")
+      .option("--workspace <id>", "Workspace id")
+      .action(async (opts: { workspace?: string }) => {
+        await mcpAddServer({ workspace: opts.workspace });
+      })
+  )
   .addCommand(
     new Command("doctor")
       .description("Validate workspace MCP server config")

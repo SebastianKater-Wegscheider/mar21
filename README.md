@@ -63,6 +63,13 @@ mar21 run weekly --workspace acme
 mar21 autopilot start --profile daily --workspace acme
 ```
 
+If you’re working inside this repo, you can run the CLI via:
+
+```bash
+pnpm -s build
+pnpm mar21 start --workspace acme
+```
+
 ## License
 Apache-2.0 — see `LICENSE`.
 

@@ -22,6 +22,7 @@ mar21 apply <runId> --workspace <id> [--yes] [--fail-on-reject] [--json]
 
 mar21 show <runId|latest> <artifact> --workspace <id>
 
+mar21 mcp add --workspace <id>
 mar21 mcp doctor --workspace <id> [--json]
 mar21 mcp tools --workspace <id> --server <serverId> [--json]
 mar21 mcp call --workspace <id> --server <serverId> --tool <toolName> --input <json> [--json]
