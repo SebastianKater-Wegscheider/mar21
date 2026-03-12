@@ -27,6 +27,7 @@ export type PlanCommandOptions = {
   since?: string;
   dryRun?: boolean;
   json?: boolean;
+  params?: Record<string, unknown>;
 };
 
 function repoRootFromCwd(): string {
@@ -223,6 +224,27 @@ function logsLine(event: Record<string, unknown>): string {
   return `${JSON.stringify({ ts: nowIso(), level: "info", ...event })}\n`;
 }
 
+function writeRequestYaml(args: {
+  inputsDir: string;
+  workflowId: string;
+  workspaceId: string;
+  mode: Mode;
+  since: string;
+  params?: Record<string, unknown>;
+}): void {
+  writeText(
+    path.join(args.inputsDir, "request.yaml"),
+    YAML.stringify({
+      apiVersion: "mar21/request-v1",
+      workflowId: args.workflowId,
+      workspace: args.workspaceId,
+      mode: args.mode,
+      since: args.since,
+      params: args.params ?? {}
+    })
+  );
+}
+
 export function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): RunSummary {
   const repoRoot = repoRootFromCwd();
   const workspaceId = resolveWorkspaceId(opts.workspace);
@@ -267,17 +289,7 @@ export function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): RunSum
   const since = opts.since ?? "P28D";
 
   fs.copyFileSync(contextPath, path.join(inputsDir, "context.snapshot.yaml"));
-  writeText(
-    path.join(inputsDir, "request.yaml"),
-    YAML.stringify({
-      apiVersion: "mar21/request-v1",
-      workflowId,
-      workspace: workspaceId,
-      mode,
-      since,
-      params: {}
-    })
-  );
+  writeRequestYaml({ inputsDir, workflowId, workspaceId, mode, since, params: opts.params });
 
   writeText(path.join(outputsDir, "plan.md"), planTemplate(workflowId));
   writeText(path.join(outputsDir, "report.md"), reportTemplate(workflowId));
@@ -354,4 +366,22 @@ export function runPlan(workflowIdRaw: string, opts: PlanCommandOptions): RunSum
       changeset: path.relative(repoRoot, path.join(runDir, "changeset.yaml"))
     }
   };
+}
+
+export function runAnalyze(scopeRaw: string, opts: PlanCommandOptions): RunSummary {
+  const scope = scopeRaw.trim();
+  const workflowId = `analyze_${slugifyWorkflowId(scope)}`;
+  return runPlan(workflowId, {
+    ...opts,
+    params: { ...(opts.params ?? {}), scope }
+  });
+}
+
+export function runReport(argRaw: string, opts: PlanCommandOptions): RunSummary {
+  const arg = argRaw.trim();
+  const workflowId = `report_${slugifyWorkflowId(arg)}`;
+  return runPlan(workflowId, {
+    ...opts,
+    params: { ...(opts.params ?? {}), cadenceOrWorkflowId: arg }
+  });
 }
