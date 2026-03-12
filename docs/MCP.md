@@ -29,6 +29,7 @@ Use these for “bring your own server” debugging:
 - `mar21 mcp doctor --workspace <id>`: schema validation + basic sanity checks
 - `mar21 mcp tools --workspace <id> --server <serverId>`: list tools (stdio only)
 - `mar21 mcp call --workspace <id> --server <serverId> --tool <toolName> --input <json>`: call tool (stdio only)
+- `mar21 mcp scaffold-mapping --workspace <id> --server <serverId>`: generate a starter `capabilities:` mapping
 
 ## Using MCP inside runs (v0.1: deep research sources)
 `deep_research_sparring` can ingest MCP tool outputs as private evidence when you provide selectors in `--request`:

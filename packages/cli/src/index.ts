@@ -4,7 +4,7 @@ import process from "node:process";
 import { applyRunChangeset } from "./apply-engine.js";
 import { autopilotStart } from "./autopilot.js";
 import { initWorkspace } from "./init.js";
-import { mcpCall, mcpDoctor, mcpTools } from "./mcp.js";
+import { mcpCall, mcpDoctor, mcpScaffoldMapping, mcpTools } from "./mcp.js";
 import { runCadence } from "./run-cadence.js";
 import { runAnalyze, runPlan, runReport } from "./run-engine.js";
 import { validateExamples } from "./validate.js";
@@ -118,6 +118,24 @@ program
           });
         }
       )
+  )
+  .addCommand(
+    new Command("scaffold-mapping")
+      .description("Scaffold capabilityId mappings from discovered MCP tool names")
+      .requiredOption("--server <id>", "Server id from _cfg/mcp-servers.yaml")
+      .option("--workspace <id>", "Workspace id")
+      .option("--apply", "Write mappings into _cfg/mcp-servers.yaml (rewrites YAML)", false)
+      .option("--force", "Overwrite existing capabilities when used with --apply", false)
+      .option("--json", "Print machine-readable output", false)
+      .action(async (opts: { workspace?: string; server?: string; apply?: boolean; force?: boolean; json?: boolean }) => {
+        await mcpScaffoldMapping({
+          workspace: opts.workspace,
+          serverId: String(opts.server),
+          apply: Boolean(opts.apply),
+          force: Boolean(opts.force),
+          json: Boolean(opts.json)
+        });
+      })
   );
 
 program
