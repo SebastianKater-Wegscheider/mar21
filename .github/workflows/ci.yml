@@ -39,3 +39,22 @@ jobs:
           RUN_ID="$(MAR21_WORKSPACE=ci node packages/cli/dist/index.js plan deep_research_sparring --json | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>process.stdout.write(JSON.parse(d).runId));')"
           MAR21_WORKSPACE=ci node packages/cli/dist/index.js apply "$RUN_ID" --yes --json > /dev/null
           MAR21_WORKSPACE=ci node packages/cli/dist/index.js apply "$RUN_ID" --yes --json | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const x=JSON.parse(d);if(!x.results.every(r=>r.status==="skipped")){console.error("expected skipped on re-apply");process.exit(1)}})'
+
+      - name: Smoke (analyze/report)
+        run: |
+          ANALYZE_RUN="$(MAR21_WORKSPACE=ci node packages/cli/dist/index.js analyze seo --json | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>process.stdout.write(JSON.parse(d).runId));')"
+          test -d "workspaces/ci/runs/$ANALYZE_RUN"
+          REPORT_RUN="$(MAR21_WORKSPACE=ci node packages/cli/dist/index.js report weekly --json | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>process.stdout.write(JSON.parse(d).runId));')"
+          test -d "workspaces/ci/runs/$REPORT_RUN"
+
+      - name: Smoke (autopilot 1 tick)
+        run: |
+          cat > workspaces/ci/profiles/weekly.yaml <<'EOF'
+          apiVersion: mar21/profile-v1
+          id: weekly
+          steps:
+            - workflowId: weekly_review
+              mode: supervised
+              since: P7D
+          EOF
+          MAR21_WORKSPACE=ci MAR21_AUTOPILOT_INTERVAL_MS=10 MAR21_AUTOPILOT_MAX_TICKS=1 node packages/cli/dist/index.js autopilot start --profile weekly --foreground > /dev/null
