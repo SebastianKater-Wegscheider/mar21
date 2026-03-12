@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>mar21 — Marketing Boilerplate for the 21st Century</title>
+    <style>
+      :root {
+        --bg: #0b0b0c;
+        --panel: #101012;
+        --border: rgba(255, 255, 255, 0.1);
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.66);
+        --faint: rgba(255, 255, 255, 0.5);
+        --shadow: 0 20px 70px rgba(0, 0, 0, 0.6);
+        --radius: 22px;
+        --slide-w: 1280;
+        --slide-h: 720;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Inter, Roboto, Helvetica, Arial;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: var(--sans);
+        color: var(--text);
+        background: var(--bg);
+        overflow: hidden;
+      }
+
+      .app {
+        position: relative;
+        height: 100%;
+        width: 100%;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .deck {
+        position: relative;
+        width: min(96vw, 1400px);
+        aspect-ratio: calc(var(--slide-w) / var(--slide-h));
+        border-radius: var(--radius);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        outline: none;
+      }
+
+      .slides {
+        position: absolute;
+        inset: 0;
+      }
+
+      .slide {
+        position: absolute;
+        inset: 0;
+        padding: 84px 96px 76px;
+        opacity: 0;
+        transform: translateX(36px);
+        transition: opacity 240ms ease, transform 240ms ease;
+      }
+
+      .slide.active {
+        opacity: 1;
+        transform: translateX(0);
+        pointer-events: auto;
+      }
+
+      .slide.inactive {
+        pointer-events: none;
+      }
+
+      .center {
+        height: 100%;
+        display: grid;
+        place-items: center;
+        text-align: center;
+      }
+
+      .stack {
+        display: grid;
+        gap: 14px;
+        place-items: center;
+        width: 100%;
+      }
+
+      h1,
+      h2 {
+        margin: 0;
+        line-height: 1.02;
+        letter-spacing: -0.035em;
+      }
+
+      h1 {
+        font-size: 86px;
+      }
+
+      h2 {
+        font-size: 66px;
+      }
+
+      p {
+        margin: 0;
+        line-height: 1.35;
+      }
+
+      .lead {
+        font-size: 24px;
+        color: rgba(255, 255, 255, 0.74);
+        max-width: 64ch;
+      }
+
+      .sublead {
+        font-size: 20px;
+        color: rgba(255, 255, 255, 0.64);
+        max-width: 70ch;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.03);
+        color: rgba(255, 255, 255, 0.74);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-size: 12px;
+        user-select: none;
+      }
+
+      .eyebrowDot {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.68);
+        box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.07);
+      }
+
+      .hr {
+        width: min(760px, 75%);
+        height: 1px;
+        background: rgba(255, 255, 255, 0.1);
+        margin-top: 6px;
+      }
+
+      .row {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+        color: rgba(255, 255, 255, 0.82);
+      }
+
+      .tag {
+        font-size: 13px;
+        padding: 9px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.03);
+        color: rgba(255, 255, 255, 0.74);
+        user-select: none;
+        white-space: nowrap;
+      }
+
+      .mono {
+        font-family: var(--mono);
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 22px;
+        line-height: 1.38;
+        color: rgba(255, 255, 255, 0.78);
+        text-align: left;
+        max-width: 66ch;
+      }
+
+      li {
+        margin: 10px 0;
+      }
+
+      pre {
+        margin: 0;
+        padding: 16px 18px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.03);
+        color: rgba(255, 255, 255, 0.84);
+        font-family: var(--mono);
+        font-size: 14px;
+        line-height: 1.38;
+        width: min(820px, 92%);
+        text-align: left;
+        overflow: auto;
+        max-height: 360px;
+      }
+
+      .key {
+        font-family: var(--mono);
+        font-size: 0.95em;
+        padding: 0.1em 0.4em;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.03);
+        color: rgba(255, 255, 255, 0.78);
+      }
+
+      .progress {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .progress > div {
+        height: 100%;
+        width: 0%;
+        background: rgba(255, 255, 255, 0.32);
+      }
+
+      .overview {
+        position: fixed;
+        inset: 0;
+        display: none;
+        padding: 26px;
+        background: rgba(0, 0, 0, 0.86);
+        backdrop-filter: blur(12px);
+        overflow: auto;
+        z-index: 50;
+      }
+
+      .overview.open {
+        display: block;
+      }
+
+      .thumbs {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 18px;
+        max-width: 1300px;
+        margin: 0 auto;
+      }
+
+      .thumb {
+        position: relative;
+        aspect-ratio: calc(var(--slide-w) / var(--slide-h));
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.03);
+        overflow: hidden;
+        cursor: pointer;
+      }
+
+      .thumb .label {
+        position: absolute;
+        left: 12px;
+        bottom: 10px;
+        right: 12px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.72);
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .thumb .title {
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .thumb .idx {
+        opacity: 0.82;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .thumbInner {
+        transform-origin: top left;
+        transform: scale(0.35);
+        width: calc(var(--slide-w) * 1px);
+        height: calc(var(--slide-h) * 1px);
+        padding: 44px 46px;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 10px;
+      }
+
+      .thumbInner h1 {
+        font-size: 44px;
+      }
+
+      .thumbInner h2 {
+        font-size: 36px;
+      }
+
+      .thumbInner .lead,
+      .thumbInner li {
+        font-size: 14px;
+      }
+
+      .thumbInner pre {
+        font-size: 11px;
+        max-height: 180px;
+        width: 100%;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .slide {
+          transition: none;
+        }
+      }
+
+      @media (max-width: 880px) {
+        .slide {
+          padding: 56px 26px 56px;
+        }
+        h1 {
+          font-size: 54px;
+        }
+        h2 {
+          font-size: 44px;
+        }
+        ul {
+          font-size: 18px;
+        }
+        .lead {
+          font-size: 20px;
+        }
+        .sublead {
+          font-size: 18px;
+        }
+      }
+
+      @media print {
+        html,
+        body {
+          background: white;
+          color: black;
+          overflow: visible;
+          height: auto;
+        }
+        .app {
+          padding: 0;
+          display: block;
+        }
+        .deck {
+          width: auto;
+          aspect-ratio: auto;
+          border: none;
+          border-radius: 0;
+          box-shadow: none;
+          overflow: visible;
+          background: white;
+        }
+        .progress,
+        .overview {
+          display: none !important;
+        }
+        .slides {
+          position: static;
+        }
+        .slide {
+          position: static;
+          opacity: 1 !important;
+          transform: none !important;
+          page-break-after: always;
+          break-after: page;
+          border-bottom: 1px solid #ddd;
+          color: black;
+        }
+        .eyebrow,
+        .tag,
+        pre {
+          background: #f6f6f6 !important;
+          border-color: #ddd !important;
+          color: black !important;
+        }
+        .lead,
+        .sublead,
+        ul {
+          color: #222 !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app" role="application" aria-label="Slide deck">
+      <div class="deck" id="deck" aria-live="polite" tabindex="0">
+        <div class="slides" id="slides">
+          <section class="slide" data-title="Title">
+            <div class="center">
+              <div class="stack">
+                <div class="eyebrow"><span class="eyebrowDot"></span> mar21</div>
+                <h1>Marketing boilerplate<br />for the 21st century.</h1>
+                <p class="lead">
+                  AI‑augmented marketing strategy and ops — with the leverage of automation and direct connection to your
+                  stack and data.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="slide" data-title="Problem">
+            <div class="center">
+              <div class="stack">
+                <h2>Marketing is too slow.</h2>
+                <p class="lead">Not because of ideas — because of toil.</p>
+                <div class="hr"></div>
+                <p class="sublead">
+                  Too many tools. Too many tabs. Too much manual reporting. Not enough time spent on judgment and value
+                  creation.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="slide" data-title="Shift">
+            <div class="center">
+              <div class="stack">
+                <h2>Make the work repeatable.</h2>
+                <p class="lead">So your best decisions happen more often.</p>
+                <div class="hr"></div>
+                <div class="row mono" style="font-size: 18px; opacity: 0.9">
+                  <span>Strategy</span><span style="opacity: 0.5">→</span><span>Execution</span
+                  ><span style="opacity: 0.5">→</span><span>Measurement</span><span style="opacity: 0.5">→</span
+                  ><span>Learning</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="slide" data-title="Definition">
+            <div class="center">
+              <div class="stack">
+                <h2>AI‑augmented marketing.</h2>
+                <p class="lead">Strategy and ops — amplified by automation.</p>
+                <div class="hr"></div>
+                <p class="sublead">
+                  Not “AI does marketing.” It’s marketing done with leverage: connected data, repeatable workflows, and
+                  an auditable path from insight to action.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="slide" data-title="Not autopilot">
+            <div class="center">
+              <div class="stack">
+                <h2>This is not autopilot.</h2>
+                <p class="lead">It’s AI‑augmented strategy and ops.</p>
+                <div class="hr"></div>
+                <p class="sublead">
+                  You keep judgment. You set direction. The system removes friction — and helps you execute with more
+                  speed and confidence.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="slide" data-title="Stack + data">
+            <div class="center">
+              <div class="stack">
+                <h2>Connected to your stack and data.</h2>
+                <p class="lead">Because marketing without truth is just noise.</p>
+                <div class="hr"></div>
+                <p class="sublead">
+                  Pull evidence from the tools you already use. Turn it into decisions you can act on. Measure what
+                  changed. Learn faster.
+                </p>
+                <div class="row" aria-label="Themes">
+                  <span class="tag">Evidence</span>
+                  <span class="tag">Decisions</span>
+                  <span class="tag">Execution</span>
+                  <span class="tag">Learning</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="slide" data-title="What you get">
+            <div class="center">
+              <div class="stack">
+                <h2>More output.<br />Less overhead.</h2>
+                <p class="lead">Execution, fully augmented — and integrated into your stack.</p>
+                <div class="hr"></div>
+                <ul>
+                  <li>Research that turns into briefs, angles, and actions — fast.</li>
+                  <li>Content creation that stays on-brand and connected to performance.</li>
+                  <li>Media buying and ad ops guided by evidence — from your data, in your tools.</li>
+                  <li>Tracking and reporting that’s integrated — not stitched together.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <section class="slide" data-title="Audience">
+            <div class="center">
+              <div class="stack">
+                <h2>Built for operators.</h2>
+                <p class="lead">CMOs and growth teams who want leverage — without losing rigor.</p>
+                <div class="hr"></div>
+                <ul>
+                  <li>Teams that care about <strong>pipeline and revenue</strong>, not just activity.</li>
+                  <li>Marketers who want <strong>speed</strong> and <strong>repeatability</strong> — not random output.</li>
+                  <li>Leaders who want <strong>accountability</strong>: what changed, why, and what we learned.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <section class="slide" data-title="Start">
+            <div class="center">
+              <div class="stack">
+                <h2>Don’t miss this.</h2>
+                <p class="lead">Time to make marketing agentic — with you in control.</p>
+                <div class="hr"></div>
+                <div class="row" aria-label="Steps">
+                  <span class="tag"><span class="mono">1</span> Download</span>
+                  <span class="tag"><span class="mono">2</span> Init</span>
+                  <span class="tag"><span class="mono">3</span> Run</span>
+                </div>
+                <pre># Download
+git clone &lt;mar21-repo-url&gt;
+cd mar21
+
+# Initialize your first workspace
+mar21 init --workspace acme
+
+# Start the rhythm
+mar21 report weekly_review --workspace acme</pre>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="progress" aria-hidden="true">
+          <div id="progressBar"></div>
+        </div>
+      </div>
+
+      <div class="overview" id="overview" aria-label="Slide overview">
+        <div class="thumbs" id="thumbs"></div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const slides = Array.from(document.querySelectorAll(".slide"));
+        const progressBar = document.getElementById("progressBar");
+        const overview = document.getElementById("overview");
+        const thumbs = document.getElementById("thumbs");
+        const deck = document.getElementById("deck");
+
+        function clampIndex(idx) {
+          if (Number.isNaN(idx)) return 0;
+          return Math.max(0, Math.min(slides.length - 1, idx));
+        }
+
+        function getIndexFromHash() {
+          const m = (location.hash || "").match(/#\/?(\d+)/);
+          return clampIndex(m ? parseInt(m[1], 10) : 0);
+        }
+
+        function setHash(idx) {
+          const next = `#/${idx}`;
+          if (location.hash === next) return;
+          history.replaceState(null, "", next);
+        }
+
+        function setActive(idx) {
+          slides.forEach((s, i) => {
+            s.classList.toggle("active", i === idx);
+            s.classList.toggle("inactive", i !== idx);
+          });
+
+          const pct = slides.length <= 1 ? 100 : (idx / (slides.length - 1)) * 100;
+          progressBar.style.width = `${pct}%`;
+          document.title = `mar21 — Pitch & Workflow (${idx + 1}/${slides.length})`;
+          setHash(idx);
+        }
+
+        function move(delta) {
+          const idx = getIndexFromHash();
+          setActive(clampIndex(idx + delta));
+        }
+
+        function toggleOverview(force) {
+          const next = typeof force === "boolean" ? force : !overview.classList.contains("open");
+          overview.classList.toggle("open", next);
+          if (next) overview.focus({ preventScroll: true });
+        }
+
+        function requestFullscreen() {
+          const el = document.documentElement;
+          if (!document.fullscreenElement && el.requestFullscreen) {
+            el.requestFullscreen().catch(() => {});
+          } else if (document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          }
+        }
+
+        function buildThumbs() {
+          thumbs.innerHTML = "";
+          slides.forEach((slide, idx) => {
+            const t = document.createElement("div");
+            t.className = "thumb";
+            t.tabIndex = 0;
+            t.setAttribute("role", "button");
+            t.setAttribute("aria-label", `Go to slide ${idx + 1}`);
+
+            const label = document.createElement("div");
+            label.className = "label";
+            const title = document.createElement("div");
+            title.className = "title";
+            title.textContent = slide.dataset.title || slide.querySelector("h1,h2")?.textContent || "Slide";
+            const num = document.createElement("div");
+            num.className = "idx";
+            num.textContent = `${idx + 1}`;
+            label.appendChild(title);
+            label.appendChild(num);
+
+            const inner = document.createElement("div");
+            inner.className = "thumbInner";
+
+            const heading = slide.querySelector("h1,h2")?.cloneNode(true);
+            if (heading) inner.appendChild(heading);
+            const lead = slide.querySelector(".lead")?.cloneNode(true);
+            if (lead) inner.appendChild(lead);
+            const list = slide.querySelector("ul")?.cloneNode(true);
+            if (list) inner.appendChild(list);
+            const pre = slide.querySelector("pre")?.cloneNode(true);
+            if (pre) inner.appendChild(pre);
+
+            t.appendChild(inner);
+            t.appendChild(label);
+
+            t.addEventListener("click", () => {
+              toggleOverview(false);
+              setActive(idx);
+            });
+            t.addEventListener("keydown", (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleOverview(false);
+                setActive(idx);
+              }
+            });
+
+            thumbs.appendChild(t);
+          });
+        }
+
+        function onKeydown(e) {
+          const key = e.key;
+          const lower = key.toLowerCase();
+
+          if (overview.classList.contains("open")) {
+            if (key === "Escape" || lower === "o") {
+              e.preventDefault();
+              toggleOverview(false);
+            }
+            return;
+          }
+
+          if (lower === "o") {
+            e.preventDefault();
+            toggleOverview(true);
+            return;
+          }
+          if (lower === "f") {
+            e.preventDefault();
+            requestFullscreen();
+            return;
+          }
+          if (lower === "p") {
+            e.preventDefault();
+            window.print();
+            return;
+          }
+
+          if (key === "ArrowRight" || key === "PageDown" || key === " " || key === "Enter") {
+            e.preventDefault();
+            move(1);
+            return;
+          }
+          if (key === "ArrowLeft" || key === "PageUp" || key === "Backspace") {
+            e.preventDefault();
+            move(-1);
+            return;
+          }
+          if (key === "Home") {
+            e.preventDefault();
+            setActive(0);
+            return;
+          }
+          if (key === "End") {
+            e.preventDefault();
+            setActive(slides.length - 1);
+            return;
+          }
+        }
+
+        window.addEventListener("hashchange", () => setActive(getIndexFromHash()));
+        window.addEventListener("keydown", onKeydown);
+        overview.addEventListener("click", (e) => {
+          if (e.target === overview) toggleOverview(false);
+        });
+        deck.addEventListener("click", () => deck.focus());
+
+        buildThumbs();
+        setActive(getIndexFromHash());
+      })();
+    </script>
+  </body>
+</html>

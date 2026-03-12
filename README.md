@@ -13,6 +13,7 @@
 ## What’s in this repo (today)
 Docs are the product for v0: the manifesto + the decision-complete interfaces you’ll build against.
 
+- `docs/presentation/index.html` — pitch deck (open locally in a browser)
 - `docs/MANIFESTO.md` — beliefs, principles, anti-patterns
 - `docs/ARCHITECTURE.md` — system decomposition + repo layout (TypeScript/Node monorepo)
 - `docs/SPECS.md` — canonical file formats and contracts (context, skills, connectors, ChangeSet YAML, runs, memory)
