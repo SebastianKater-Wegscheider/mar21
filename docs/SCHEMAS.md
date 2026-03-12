@@ -12,6 +12,7 @@
 ## Mapping: files → schemas
 Stable artifacts and their schema:
 - `workspaces/<ws>/marketing-context.yaml` → `schemas/marketing-context.schema.json`
+- `workspaces/<ws>/_cfg/mcp-servers.yaml` → `schemas/mcp-servers.schema.json`
 - `skills/*/*/skill.yaml` → `schemas/skill.schema.json`
 - `runs/<id>/changeset.yaml` → `schemas/changeset.schema.json`
 - `runs/<id>/inputs/request.yaml` → `schemas/request.schema.json`

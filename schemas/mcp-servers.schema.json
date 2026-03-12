@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mar21:schema:mcp-servers:v1",
+  "title": "mar21 MCP Servers (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "servers"],
+  "properties": {
+    "apiVersion": {
+      "const": "mar21/mcp-servers-v1"
+    },
+    "servers": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "transport"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+          },
+          "transport": {
+            "type": "string",
+            "enum": ["stdio", "http"]
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "args": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": []
+          },
+          "cwd": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "default": {}
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "transport": { "const": "stdio" } }, "required": ["transport"] },
+            "then": { "required": ["command"] }
+          },
+          {
+            "if": { "properties": { "transport": { "const": "http" } }, "required": ["transport"] },
+            "then": { "required": ["url"] }
+          }
+        ]
+      }
+    }
+  }
+}
+

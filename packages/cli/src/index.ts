@@ -4,6 +4,7 @@ import process from "node:process";
 import { applyRunChangeset } from "./apply-engine.js";
 import { autopilotStart } from "./autopilot.js";
 import { initWorkspace } from "./init.js";
+import { mcpCall, mcpDoctor, mcpTools } from "./mcp.js";
 import { runCadence } from "./run-cadence.js";
 import { runAnalyze, runPlan, runReport } from "./run-engine.js";
 import { validateExamples } from "./validate.js";
@@ -75,6 +76,49 @@ program
     if (opts.examples) process.exit(validateExamples());
     console.log("Nothing to validate. Use --examples for now.");
   });
+
+program
+  .command("mcp")
+  .description("MCP utilities (v0.1: stdio transport)")
+  .addCommand(
+    new Command("doctor")
+      .description("Validate workspace MCP server config")
+      .option("--workspace <id>", "Workspace id")
+      .option("--json", "Print machine-readable output", false)
+      .action(async (opts: { workspace?: string; json?: boolean }) => {
+        await mcpDoctor({ workspace: opts.workspace, json: Boolean(opts.json) });
+      })
+  )
+  .addCommand(
+    new Command("tools")
+      .description("List tools exposed by an MCP server (stdio)")
+      .requiredOption("--server <id>", "Server id from _cfg/mcp-servers.yaml")
+      .option("--workspace <id>", "Workspace id")
+      .option("--json", "Print machine-readable output", false)
+      .action(async (opts: { workspace?: string; server?: string; json?: boolean }) => {
+        await mcpTools({ workspace: opts.workspace, serverId: String(opts.server), json: Boolean(opts.json) });
+      })
+  )
+  .addCommand(
+    new Command("call")
+      .description("Call an MCP tool (stdio)")
+      .requiredOption("--server <id>", "Server id from _cfg/mcp-servers.yaml")
+      .requiredOption("--tool <name>", "Tool name")
+      .requiredOption("--input <json>", "JSON string for tool input (use '{}' for empty)")
+      .option("--workspace <id>", "Workspace id")
+      .option("--json", "Pretty printing off (useful for piping)", false)
+      .action(
+        async (opts: { workspace?: string; server?: string; tool?: string; input?: string; json?: boolean }) => {
+          await mcpCall({
+            workspace: opts.workspace,
+            serverId: String(opts.server),
+            tool: String(opts.tool),
+            input: String(opts.input),
+            json: Boolean(opts.json)
+          });
+        }
+      )
+  );
 
 program
   .command("plan")

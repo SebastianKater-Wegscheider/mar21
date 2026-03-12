@@ -16,6 +16,10 @@ mar21 run daily|weekly|monthly --workspace <id> [--profile <profileId>] [--mode 
 mar21 autopilot start --workspace <id> --profile <profileId> [--mode <mode>] [--dry-run] [--foreground]
 
 mar21 apply <runId> --workspace <id> [--yes] [--fail-on-reject] [--json]
+
+mar21 mcp doctor --workspace <id> [--json]
+mar21 mcp tools --workspace <id> --server <serverId> [--json]
+mar21 mcp call --workspace <id> --server <serverId> --tool <toolName> --input <json> [--json]
 ```
 
 ### Optional task convenience commands (v1)
@@ -50,6 +54,11 @@ mar21 crm plan <workflowId> ...
 - `--since <duration>` uses ISO 8601 duration strings (e.g. `P7D`, `P28D`, `P90D`).
 - `--request <path>` (plan only, v0.1.1+) merges a YAML patch into `request.params.*` for the run.
 - `--json` prints a machine-readable run summary to stdout.
+
+## MCP config (v0.1)
+- Workspace registry: `workspaces/<ws>/_cfg/mcp-servers.yaml`
+- Schema: `urn:mar21:schema:mcp-servers:v1`
+- Transports: `stdio` only (in v0.1)
 
 ## Run id format
 Run ids must be filesystem-safe and sortable:

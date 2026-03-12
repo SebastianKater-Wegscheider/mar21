@@ -21,7 +21,8 @@ This document specifies the system decomposition and the *intended* repository l
    - May use LLMs internally, but always expose typed inputs/outputs
 
 4) **Connectors**
-   - Auth + API calls for external tools
+   - **MCP-first:** prefers external tools via MCP servers (pluggable; discover tools at runtime)
+   - May still include native connectors for “hard requirements” (e.g., extra safety/caching behavior)
    - Declare capabilities and risk (read-only vs write ops)
    - Support dry-run and rate limiting
 
@@ -37,13 +38,22 @@ flowchart TD
   CLI --> MEM["Marketing Memory (files)"]
   CLI --> ORCH["Orchestrator"]
   ORCH --> CONN["Connectors (GSC/GA4/Meta/HubSpot/Shopify/WP/Slack/Klaviyo)"]
+  ORCH --> MCP["MCP Servers (pluggable tools)"]
   ORCH --> SK["Skills (typed I/O)"]
   CONN --> SK
+  MCP --> SK
   SK --> ORCH
   ORCH --> ART["Run Artifacts: Plan + Report + ChangeSet + Logs"]
   ART --> U
   ORCH -->|optional| APPLY["Apply ChangeSet (supervised approvals)"]
 ```
+
+## MCP-first integration
+`mar21` treats MCP as the default integration mechanism. This means:
+- operators can add an MCP server “on the fly” per workspace (no mar21 release required)
+- `mar21` still owns the safety layer (caps, approvals, evidence retention, audit trail)
+
+See `docs/MCP.md`.
 
 ## Proposed monorepo layout (TypeScript/Node)
 This is the opinionated layout `mar21` documentation assumes:

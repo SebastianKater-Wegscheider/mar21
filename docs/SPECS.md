@@ -56,6 +56,7 @@ workspaces/
     secrets/
       .env                 # local-only, never commit
     _cfg/                  # workspace overrides (update-safe)
+      mcp-servers.yaml      # MCP server registry (pluggable integrations)
     profiles/              # autopilot profiles (daily/weekly/monthly)
     todos.yaml             # v1 task store (human work as first-class ops)
     memory/
@@ -75,6 +76,16 @@ workspaces/
         changeset.yaml
         run.json
 ```
+
+### 1.4 MCP servers registry (workspace-local)
+`mar21` is MCP-first: workspaces can declare MCP servers in:
+- `workspaces/<ws>/_cfg/mcp-servers.yaml`
+
+Contract:
+- schema `$id`: `urn:mar21:schema:mcp-servers:v1`
+- `apiVersion`: `mar21/mcp-servers-v1`
+
+In v0.1, `mar21 mcp *` supports `transport: stdio` only.
 
 ## 2) Marketing Context schema (YAML)
 

@@ -211,6 +211,48 @@ function envTemplateForConnectors(workspaceId: string, connectors: ConnectorId[]
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
+function mcpServersTemplate(connectors: ConnectorId[]): string {
+  const servers: Array<Record<string, unknown>> = [];
+  const has = (id: ConnectorId) => connectors.includes(id);
+
+  // MCP-first defaults: offer a suggested stdio server entry where a commonly-used server exists.
+  // Operators can add/replace servers at any time in `_cfg/mcp-servers.yaml`.
+  if (has("gdrive")) {
+    servers.push({
+      id: "gdrive",
+      transport: "stdio",
+      command: "npx",
+      args: ["-y", "@modelcontextprotocol/server-gdrive"],
+      env: {
+        // NOTE: server env keys vary by implementation; adjust to match the chosen server README.
+        MAR21_GDRIVE_CLIENT_ID: "${MAR21_GDRIVE_CLIENT_ID}",
+        MAR21_GDRIVE_CLIENT_SECRET: "${MAR21_GDRIVE_CLIENT_SECRET}",
+        MAR21_GDRIVE_REFRESH_TOKEN: "${MAR21_GDRIVE_REFRESH_TOKEN}"
+      },
+      notes: "Suggested MCP server. Adjust env keys to match server requirements."
+    });
+  }
+
+  if (has("slack")) {
+    servers.push({
+      id: "slack",
+      transport: "stdio",
+      command: "npx",
+      args: ["-y", "@modelcontextprotocol/server-slack"],
+      env: {
+        MAR21_SLACK_BOT_TOKEN: "${MAR21_SLACK_BOT_TOKEN}"
+      },
+      notes: "Suggested MCP server. Adjust env keys to match server requirements."
+    });
+  }
+
+  const doc = {
+    apiVersion: "mar21/mcp-servers-v1",
+    servers
+  };
+  return YAML.stringify(doc);
+}
+
 export function initWorkspace(opts: InitOptions): { workspace: string; root: string } {
   const workspaceId = opts.workspace?.trim();
   if (!workspaceId) {
@@ -296,9 +338,14 @@ export function initWorkspace(opts: InitOptions): { workspace: string; root: str
   }
 
   const secretsEnvPath = path.join(wsRoot, "secrets", ".env");
+  const connectors = resolveConnectorSelection(opts);
   if (!fs.existsSync(secretsEnvPath) || opts.force) {
-    const connectors = resolveConnectorSelection(opts);
     fs.writeFileSync(secretsEnvPath, envTemplateForConnectors(workspaceId, connectors), "utf-8");
+  }
+
+  const mcpServersPath = path.join(wsRoot, "_cfg", "mcp-servers.yaml");
+  if (!fs.existsSync(mcpServersPath) || opts.force) {
+    fs.writeFileSync(mcpServersPath, mcpServersTemplate(connectors), "utf-8");
   }
 
   for (const name of ["learnings.yaml", "winners.yaml", "losers.yaml", "exclusions.yaml"] as const) {
